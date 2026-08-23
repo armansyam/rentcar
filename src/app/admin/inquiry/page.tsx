@@ -340,15 +340,109 @@ export default function AdminInquiriesPage() {
     setExtendModalItem(null);
   };
 
+  // Helper to parse date to YYYY-MM-DD for native date input
+  function parseToIsoDate(dateStr?: string): string {
+    if (!dateStr) return '';
+    const trimmed = dateStr.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+    const monthNames = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    if (trimmed.includes(' ')) {
+      const parts = trimmed.split(' ');
+      const day = parseInt(parts[0], 10);
+      const mIdx = monthNames.findIndex((m) => parts[1]?.toLowerCase().startsWith(m.toLowerCase().slice(0, 3)));
+      const year = parseInt(parts[2], 10) || new Date().getFullYear();
+      if (!isNaN(day) && mIdx !== -1) {
+        const d = new Date(year, mIdx, day);
+        return d.toISOString().slice(0, 10);
+      }
+    }
+    const parsed = new Date(trimmed);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toISOString().slice(0, 10);
+    }
+    return '';
+  }
+
+  function addDaysToIso(startDateStr: string, days: number): string {
+    if (!startDateStr) return '';
+    const d = new Date(startDateStr);
+    if (isNaN(d.getTime())) return '';
+    d.setDate(d.getDate() + Number(days));
+    return d.toISOString().slice(0, 10);
+  }
+
+  function calcDaysBetweenIso(startStr: string, endStr: string): number {
+    if (!startStr || !endStr) return 1;
+    const s = new Date(startStr);
+    const e = new Date(endStr);
+    if (isNaN(s.getTime()) || isNaN(e.getTime())) return 1;
+    const diffTime = e.getTime() - s.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+    return Math.max(1, diffDays);
+  }
+
   // 5. Action: Edit / Reschedule Booking Schedule
+  const updateReschedulePrice = (dur: number, currentItem?: any) => {
+    const item = currentItem || rescheduleModalItem;
+    if (!item) return;
+    const matchedCar =
+      carsList.find((c) => c.id === item.car_id) ||
+      carsList.find((c) => item.car_name && item.car_name.toLowerCase().includes(c.model.toLowerCase()));
+    const unitPrice = matchedCar
+      ? matchedCar.price_per_day
+      : Math.round((item.total_price || 350000) / (item.duration_days || 1)) || 350000;
+    setRescheduleTotalPrice(dur * unitPrice);
+  };
+
   const openRescheduleModal = (item: any) => {
     setRescheduleModalItem(item);
-    setRescheduleStartDate(item.start_date || '');
-    setRescheduleEndDate(item.end_date || '');
-    setRescheduleDuration(item.duration_days || 1);
+    const startIso = parseToIsoDate(item.start_date) || new Date().toISOString().slice(0, 10);
+    const duration = Math.max(1, Number(item.duration_days) || 1);
+    const endIso = parseToIsoDate(item.end_date) || addDaysToIso(startIso, duration);
+
+    setRescheduleStartDate(startIso);
+    setRescheduleEndDate(endIso);
+    setRescheduleDuration(duration);
     setRescheduleDestination(item.destination || '');
-    setRescheduleTotalPrice(item.total_price || item.duration_days * 350000);
+    updateReschedulePrice(duration, item);
     setRescheduleNotes(item.notes_admin || '');
+  };
+
+  const handleRescheduleStartDateChange = (newStart: string) => {
+    setRescheduleStartDate(newStart);
+    if (!newStart) return;
+    if (rescheduleEndDate && new Date(rescheduleEndDate) > new Date(newStart)) {
+      const newDur = calcDaysBetweenIso(newStart, rescheduleEndDate);
+      setRescheduleDuration(newDur);
+      updateReschedulePrice(newDur);
+    } else {
+      const newEnd = addDaysToIso(newStart, rescheduleDuration);
+      setRescheduleEndDate(newEnd);
+      updateReschedulePrice(rescheduleDuration);
+    }
+  };
+
+  const handleRescheduleEndDateChange = (newEnd: string) => {
+    setRescheduleEndDate(newEnd);
+    if (!newEnd || !rescheduleStartDate) return;
+    const newDur = calcDaysBetweenIso(rescheduleStartDate, newEnd);
+    setRescheduleDuration(newDur);
+    updateReschedulePrice(newDur);
+  };
+
+  const handleRescheduleDurationChange = (newDur: number) => {
+    const validDur = Math.max(1, newDur);
+    setRescheduleDuration(validDur);
+    if (rescheduleStartDate) {
+      const newEnd = addDaysToIso(rescheduleStartDate, validDur);
+      setRescheduleEndDate(newEnd);
+    }
+    updateReschedulePrice(validDur);
   };
 
   const submitReschedule = async () => {
@@ -1591,50 +1685,49 @@ _Terima kasih telah mempercayakan perjalanan Anda kepada kami!_`;
             <div className="space-y-4 text-xs sm:text-sm">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Tanggal Mulai Sewa *</label>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Tanggal Mulai Sewa *
+                  </label>
                   <input
-                    type="text"
+                    type="date"
+                    required
                     value={rescheduleStartDate}
-                    onChange={(e) => setRescheduleStartDate(e.target.value)}
-                    placeholder="Contoh: 26 Agustus 2026 atau 2026-08-26"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-bold focus:bg-white"
+                    onChange={(e) => handleRescheduleStartDateChange(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-bold focus:bg-white focus:border-brand-navy cursor-pointer"
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Tanggal Selesai Sewa *</label>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Tanggal Selesai Sewa *
+                  </label>
                   <input
-                    type="text"
+                    type="date"
+                    required
+                    min={rescheduleStartDate}
                     value={rescheduleEndDate}
-                    onChange={(e) => setRescheduleEndDate(e.target.value)}
-                    placeholder="Contoh: 28 Agustus 2026 atau 2026-08-28"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-bold focus:bg-white"
+                    onChange={(e) => handleRescheduleEndDateChange(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-bold focus:bg-white focus:border-brand-navy cursor-pointer"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Total Durasi (Hari) *</label>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Total Durasi (Hari) *
+                  </label>
                   <input
                     type="number"
                     min={1}
                     value={rescheduleDuration}
-                    onChange={(e) => {
-                      const newDur = Math.max(1, Number(e.target.value) || 1);
-                      setRescheduleDuration(newDur);
-                      const matchedCar =
-                        carsList.find((c) => c.id === rescheduleModalItem.car_id) ||
-                        carsList.find((c) => rescheduleModalItem.car_name && rescheduleModalItem.car_name.toLowerCase().includes(c.model.toLowerCase()));
-                      const unitPrice = matchedCar
-                        ? matchedCar.price_per_day
-                        : Math.round((rescheduleModalItem.total_price || 350000) / (rescheduleModalItem.duration_days || 1)) || 350000;
-                      setRescheduleTotalPrice(newDur * unitPrice);
-                    }}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-bold focus:bg-white"
+                    onChange={(e) => handleRescheduleDurationChange(Number(e.target.value) || 1)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-bold focus:bg-white focus:border-brand-navy"
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Total Biaya Sewa Baru (Otomatis)</label>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Total Biaya Sewa Baru (Otomatis)
+                  </label>
                   <div className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-black text-xs sm:text-sm flex items-center">
                     Rp {rescheduleTotalPrice.toLocaleString('id-ID')}
                   </div>
