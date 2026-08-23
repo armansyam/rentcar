@@ -60,24 +60,25 @@ echo -e "${GREEN}✓ Build produksi berhasil dibuat tanpa error.${NC}"
 
 # 6. Restart Server (PM2 jika tersedia, atau fallback info)
 echo -e "\n${BOLD}[6/6] Menjalankan / Memperbarui Service Aplikasi...${NC}"
-APP_NAME="rentcar"
-PORT=3000
+APP_NAME="${APP_NAME:-rentcar}"
+PORT="${PORT:-${1:-3000}}"
 
 if command -v pm2 &> /dev/null; then
     echo -e "Menggunakan PM2 Process Manager..."
     if pm2 list | grep -q "$APP_NAME"; then
-        echo -e "Merestart service PM2: ${YELLOW}$APP_NAME${NC}..."
-        pm2 restart "$APP_NAME"
+        echo -e "Merestart service PM2: ${YELLOW}$APP_NAME${NC} pada port ${YELLOW}$PORT${NC}..."
+        pm2 restart "$APP_NAME" --update-env
     else
-        echo -e "Memulai service baru di PM2: ${YELLOW}$APP_NAME${NC} pada port ${PORT}..."
+        echo -e "Memulai service baru di PM2: ${YELLOW}$APP_NAME${NC} pada port ${YELLOW}${PORT}${NC}..."
         pm2 start npm --name "$APP_NAME" -- start -- -p "$PORT"
     fi
     pm2 save
-    echo -e "${GREEN}✓ Service PM2 berhasil diperbarui!${NC}"
+    echo -e "${GREEN}✓ Service PM2 berhasil diperbarui pada port ${PORT}!${NC}"
 else
     echo -e "${YELLOW}ℹ️ PM2 tidak terdeteksi secara global.${NC}"
-    echo -e "Untuk menjalankan aplikasi di latar belakang, Anda dapat menggunakan:"
-    echo -e "  ${BOLD}npm run start${NC}  atau install PM2: ${BOLD}npm i -g pm2 && pm2 start npm --name \"rentcar\" -- start${NC}"
+    echo -e "Untuk menjalankan aplikasi pada port ${BOLD}${PORT}${NC}:"
+    echo -e "  ${BOLD}npm run start -- -p ${PORT}${NC}"
+    echo -e "Atau dengan PM2: ${BOLD}pm2 start npm --name \"$APP_NAME\" -- start -- -p ${PORT}${NC}"
 fi
 
 echo -e "\n${BOLD}${GREEN}====================================================${NC}"
