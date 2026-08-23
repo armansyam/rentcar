@@ -647,7 +647,7 @@ _Terima kasih telah mempercayakan perjalanan Anda kepada kami!_`;
           <table className="w-full text-left text-sm text-slate-600">
             <thead className="bg-slate-50 border-b border-slate-200 text-[11px] uppercase tracking-wider font-extrabold text-slate-500">
               <tr>
-                <th className="px-5 py-4">Invoice & Penyewa</th>
+                <th className="px-5 py-4">Penyewa</th>
                 <th className="px-5 py-4">Unit Mobil Fisik</th>
                 <th className="px-5 py-4">Jadwal & Durasi</th>
                 {activeTab === 'inquiry' && <th className="px-5 py-4">Estimasi Total</th>}
@@ -684,14 +684,11 @@ _Terima kasih telah mempercayakan perjalanan Anda kepada kami!_`;
                         isOverdue ? 'bg-rose-50/50' : isToday ? 'bg-amber-50/40' : ''
                       }`}
                     >
-                      {/* Invoice & Customer */}
+                      {/* Customer Name & Phone */}
                       <td className="px-5 py-4">
-                        <div className="font-extrabold text-brand-navy font-mono text-xs">
-                          {item.invoice_no}
-                        </div>
-                        <div className="font-bold text-slate-900 mt-0.5">{item.customer_name}</div>
-                        <div className="text-slate-500 text-xs flex items-center gap-1 mt-0.5">
-                          <WhatsAppIcon size={13} className="text-brand-green-wa" />
+                        <div className="font-extrabold text-slate-900 text-sm tracking-tight">{item.customer_name}</div>
+                        <div className="text-slate-500 text-xs flex items-center gap-1 mt-1 font-medium">
+                          <WhatsAppIcon size={13} className="text-brand-green-wa shrink-0" />
                           <span>{item.customer_phone}</span>
                         </div>
                       </td>
