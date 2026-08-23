@@ -71,6 +71,7 @@ export default function TestimonialSection() {
                     src={item.avatar}
                     alt={item.name}
                     fill
+                    loading="lazy"
                     className="object-cover"
                   />
                 </div>

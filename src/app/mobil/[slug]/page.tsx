@@ -107,6 +107,7 @@ export default function CarDetailPage({
                         src={imgUrl}
                         alt={`Galeri ${i + 1}`}
                         fill
+                        loading="lazy"
                         className="object-contain"
                       />
                     </div>
