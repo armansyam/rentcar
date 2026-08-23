@@ -10,7 +10,6 @@ import BookingForm from '@/components/home/BookingForm';
 import HowItWorks from '@/components/home/HowItWorks';
 import TermsSection from '@/components/home/TermsSection';
 import LocationSection from '@/components/home/LocationSection';
-import TestimonialSection from '@/components/home/TestimonialSection';
 import FAQSection from '@/components/home/FAQSection';
 import { CarItem } from '@/components/vehicle/VehicleCard';
 
@@ -83,19 +82,16 @@ export default function HomePage({
         {/* 5. Syarat & Ketentuan Sewa */}
         <TermsSection />
 
-        {/* 6. Testimoni Pelanggan */}
-        <TestimonialSection />
-
-        {/* 7. Tanya Jawab (FAQ) */}
+        {/* 6. Tanya Jawab (FAQ) */}
         <FAQSection />
 
-        {/* 8. Profil & Keunggulan Perusahaan (Tentang Kami) */}
+        {/* 7. Profil & Keunggulan Perusahaan (Tentang Kami) */}
         <AboutSection
           title={settings.about_title}
           text={settings.about_text}
         />
 
-        {/* 9. Lokasi Kantor & Kontak (Tepat di Atas Footer) */}
+        {/* 8. Lokasi Kantor & Kontak (Tepat di Atas Footer) */}
         <LocationSection
           officeName={settings.office_name}
           officeAddress={settings.office_address}
