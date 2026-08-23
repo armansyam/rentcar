@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import Image from 'next/image';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   CheckIcon,
   MapPinIcon,
@@ -11,6 +10,9 @@ import {
   ClockIcon,
   GlobeIcon,
   SearchIcon,
+  BuildingIcon,
+  CreditCardIcon,
+  InstagramIcon,
   FileTextIcon,
 } from '@/components/ui/Icons';
 
@@ -28,7 +30,7 @@ function getGoogleMapsEmbedUrl(inputUrl?: string, address?: string, officeName?:
   return `https://maps.google.com/maps?q=${query}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
 }
 
-type SectionType = 'contact' | 'location' | 'seo' | null;
+type SectionType = 'profile' | 'payment' | 'contact' | 'location' | 'social' | 'seo' | null;
 
 export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<Record<string, string>>({});
@@ -42,9 +44,11 @@ export default function AdminSettingsPage() {
   const [checkingMap, setCheckingMap] = useState(false);
   const [mapCheckMessage, setMapCheckMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // OG Image Upload
-  const [uploadingOg, setUploadingOg] = useState(false);
-  const ogFileInputRef = React.useRef<HTMLInputElement>(null);
+  // Upload state
+  const [uploadingField, setUploadingField] = useState<string | null>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const qrisInputRef = useRef<HTMLInputElement>(null);
+  const ogFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetch('/api/settings')
@@ -68,7 +72,8 @@ export default function AdminSettingsPage() {
     setMapCheckMessage(null);
   };
 
-  const handleSaveSection = async (section: 'contact' | 'location' | 'seo', sectionName: string) => {
+  const handleSaveSection = async (section: SectionType, sectionName: string) => {
+    if (!section) return;
     setSavingSection(section);
     try {
       const res = await fetch('/api/settings', {
@@ -88,6 +93,28 @@ export default function AdminSettingsPage() {
       console.error(err);
     } finally {
       setSavingSection(null);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, targetKey: string) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingField(targetKey);
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.success) {
+        handleChange(targetKey, data.url);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setUploadingField(null);
     }
   };
 
@@ -137,28 +164,6 @@ export default function AdminSettingsPage() {
     }
   };
 
-  const handleOgUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploadingOg(true);
-    const formData = new FormData();
-    formData.append('file', file);
-    try {
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-      const data = await res.json();
-      if (data.success) {
-        handleChange('og_image', data.url);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setUploadingOg(false);
-    }
-  };
-
   const liveEmbedUrl =
     settings.google_maps_embed ||
     getGoogleMapsEmbedUrl(settings.google_maps_url, settings.office_address, settings.office_name);
@@ -197,7 +202,7 @@ export default function AdminSettingsPage() {
           Pengaturan Bisnis, Kontak & SEO
         </h1>
         <p className="text-xs sm:text-sm text-slate-500 mt-1">
-          Kelola nomor WhatsApp admin, alamat kantor, Google Maps, jam operasional, dan optimasi SEO website secara mandiri per bagian.
+          Kelola profil bisnis, rekening bank resmi & QRIS, kontak WhatsApp admin, alamat kantor, media sosial, dan optimasi SEO website.
         </p>
       </div>
 
@@ -210,14 +215,405 @@ export default function AdminSettingsPage() {
       )}
 
       {/* ========================================================================= */}
-      {/* SECTION 1: Kontak & WhatsApp Admin                                       */}
+      {/* SECTION 1: Profil & Branding Perusahaan                                   */}
+      {/* ========================================================================= */}
+      <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 card-shadow space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div>
+            <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+              <BuildingIcon size={18} className="text-brand-navy" />
+              <span>Profil & Branding Perusahaan</span>
+            </h2>
+            <p className="text-[11px] text-slate-400">Identitas nama rental, slogan/tagline, logo resmi, dan legalitas usaha</p>
+          </div>
+
+          {editingSection !== 'profile' ? (
+            <button
+              type="button"
+              onClick={() => {
+                setEditingSection('profile');
+                setMapCheckMessage(null);
+              }}
+              className="text-xs font-bold text-brand-navy hover:text-brand-navy-light underline cursor-pointer px-2 py-1"
+            >
+              Edit
+            </button>
+          ) : (
+            <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
+              Mode Edit
+            </span>
+          )}
+        </div>
+
+        {/* View Mode */}
+        {editingSection !== 'profile' ? (
+          <div className="space-y-4 pt-1 text-xs sm:text-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+              <div className="w-16 h-16 rounded-2xl bg-white border border-slate-200 overflow-hidden relative shrink-0 flex items-center justify-center p-1 shadow-2xs">
+                {settings.company_logo ? (
+                  <img
+                    src={settings.company_logo}
+                    alt="Logo Perusahaan"
+                    className="w-full h-full object-contain"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = '/favicon.png';
+                    }}
+                  />
+                ) : (
+                  <span className="font-black text-brand-navy text-lg">RC</span>
+                )}
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-extrabold text-slate-900 text-base">{settings.company_name || 'RentCar'}</h3>
+                  {settings.established_year && (
+                    <span className="text-[10px] bg-brand-navy/10 text-brand-navy font-bold px-2 py-0.5 rounded-md">
+                      Est. {settings.established_year}
+                    </span>
+                  )}
+                </div>
+                <p className="text-slate-600 text-xs font-medium">
+                  {settings.company_tagline || 'Sewa Mobil Lepas Kunci Terpercaya'}
+                </p>
+                {settings.business_license && (
+                  <span className="text-[11px] text-slate-500 block font-mono">
+                    NIB / Izin Usaha: {settings.business_license}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Edit Mode Form */
+          <div className="space-y-4 pt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
+                  Nama Bisnis / Brand Rental *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={settings.company_name || ''}
+                  onChange={(e) => handleChange('company_name', e.target.value)}
+                  placeholder="RentCar Bandung"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 font-bold focus:bg-white focus:border-brand-navy"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
+                  Tagline / Slogan Bisnis
+                </label>
+                <input
+                  type="text"
+                  value={settings.company_tagline || ''}
+                  onChange={(e) => handleChange('company_tagline', e.target.value)}
+                  placeholder="Sewa Mobil Lepas Kunci Nyaman & Terpercaya"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 focus:bg-white focus:border-brand-navy"
+                />
+              </div>
+            </div>
+
+            {/* Logo Upload */}
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
+                Logo Resmi Perusahaan
+              </label>
+              <div className="flex items-center gap-3">
+                <div className="w-14 h-14 rounded-xl border border-slate-200 bg-slate-100 overflow-hidden relative shrink-0 flex items-center justify-center p-1">
+                  {settings.company_logo ? (
+                    <img
+                      src={settings.company_logo}
+                      alt="Logo Preview"
+                      className="w-full h-full object-contain"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = '/favicon.png';
+                      }}
+                    />
+                  ) : (
+                    <span className="text-xs font-bold text-slate-400">No Logo</span>
+                  )}
+                </div>
+                <div className="flex-1 space-y-1.5">
+                  <input
+                    type="file"
+                    ref={logoInputRef}
+                    onChange={(e) => handleFileUpload(e, 'company_logo')}
+                    accept="image/*"
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    disabled={uploadingField === 'company_logo'}
+                    onClick={() => logoInputRef.current?.click()}
+                    className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                  >
+                    {uploadingField === 'company_logo' ? 'Mengunggah...' : '📁 Unggah Logo dari Komputer'}
+                  </button>
+                  <input
+                    type="text"
+                    value={settings.company_logo || ''}
+                    onChange={(e) => handleChange('company_logo', e.target.value)}
+                    placeholder="/favicon.png atau URL logo"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-700 font-mono focus:bg-white"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
+                  Tahun Berdiri (Est.)
+                </label>
+                <input
+                  type="text"
+                  value={settings.established_year || ''}
+                  onChange={(e) => handleChange('established_year', e.target.value)}
+                  placeholder="2018"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 focus:bg-white focus:border-brand-navy"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
+                  Nomor Legalitas / NIB (Opsional)
+                </label>
+                <input
+                  type="text"
+                  value={settings.business_license || ''}
+                  onChange={(e) => handleChange('business_license', e.target.value)}
+                  placeholder="NIB: 9120001234567"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 font-mono focus:bg-white focus:border-brand-navy"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={handleCancel}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={savingSection === 'profile'}
+                onClick={() => handleSaveSection('profile', 'Profil Perusahaan')}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-brand-navy hover:bg-brand-navy-light text-white shadow-sm transition-all cursor-pointer disabled:opacity-50"
+              >
+                {savingSection === 'profile' ? 'Menyimpan...' : 'Simpan Profil'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ========================================================================= */}
+      {/* SECTION 2: Rekening Bank Resmi & QRIS Pembayaran                          */}
+      {/* ========================================================================= */}
+      <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 card-shadow space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div>
+            <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+              <CreditCardIcon size={18} className="text-brand-navy" />
+              <span>Rekening Resmi & Pembayaran QRIS</span>
+            </h2>
+            <p className="text-[11px] text-slate-400">Rekening bank penampung transfer DP dan barcode QRIS bisnis</p>
+          </div>
+
+          {editingSection !== 'payment' ? (
+            <button
+              type="button"
+              onClick={() => {
+                setEditingSection('payment');
+                setMapCheckMessage(null);
+              }}
+              className="text-xs font-bold text-brand-navy hover:text-brand-navy-light underline cursor-pointer px-2 py-1"
+            >
+              Edit
+            </button>
+          ) : (
+            <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
+              Mode Edit
+            </span>
+          )}
+        </div>
+
+        {/* View Mode */}
+        {editingSection !== 'payment' ? (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 text-xs sm:text-sm">
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 sm:col-span-2 space-y-2">
+              <span className="text-slate-400 text-xs block">Rekening Bank Utama</span>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-1 rounded-lg bg-blue-100 text-blue-800 font-extrabold text-xs">
+                  {settings.bank_name || 'BCA'}
+                </span>
+                <span className="font-mono font-black text-slate-900 text-base">
+                  {settings.bank_account_number || '1234-5678-90'}
+                </span>
+              </div>
+              <div className="text-slate-700 text-xs font-semibold">
+                Atas Nama: <strong className="text-slate-900">{settings.bank_account_name || settings.company_name || 'RentCar'}</strong>
+              </div>
+              {settings.payment_instructions && (
+                <p className="text-[11px] text-slate-500 pt-1 border-t border-slate-200/60 leading-relaxed">
+                  {settings.payment_instructions}
+                </p>
+              )}
+            </div>
+
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col items-center justify-center text-center">
+              <span className="text-slate-400 text-xs block mb-1.5">Barcode QRIS Bisnis</span>
+              {settings.qris_image ? (
+                <div className="w-24 h-24 rounded-xl border border-slate-200 bg-white p-1 overflow-hidden">
+                  <img
+                    src={settings.qris_image}
+                    alt="QRIS Barcode"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+              ) : (
+                <span className="text-xs text-slate-400 italic">QRIS belum diunggah</span>
+              )}
+            </div>
+          </div>
+        ) : (
+          /* Edit Mode Form */
+          <div className="space-y-4 pt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
+                  Nama Bank *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={settings.bank_name || ''}
+                  onChange={(e) => handleChange('bank_name', e.target.value)}
+                  placeholder="BCA / Mandiri / BRI / BNI"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 font-bold focus:bg-white focus:border-brand-navy"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
+                  Nomor Rekening *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={settings.bank_account_number || ''}
+                  onChange={(e) => handleChange('bank_account_number', e.target.value)}
+                  placeholder="1234-5678-90"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 font-mono font-bold focus:bg-white focus:border-brand-navy"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
+                  Atas Nama (A/N) *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={settings.bank_account_name || ''}
+                  onChange={(e) => handleChange('bank_account_name', e.target.value)}
+                  placeholder="PT RentCar Indonesia"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 font-semibold focus:bg-white focus:border-brand-navy"
+                />
+              </div>
+            </div>
+
+            {/* QRIS Upload */}
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
+                Gambar / Barcode QRIS Pembayaran (Opsional)
+              </label>
+              <div className="flex items-center gap-3">
+                <div className="w-16 h-16 rounded-xl border border-slate-200 bg-slate-100 overflow-hidden relative shrink-0 flex items-center justify-center p-1">
+                  {settings.qris_image ? (
+                    <img
+                      src={settings.qris_image}
+                      alt="QRIS Preview"
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    <span className="text-[10px] font-bold text-slate-400">No QRIS</span>
+                  )}
+                </div>
+                <div className="flex-1 space-y-1.5">
+                  <input
+                    type="file"
+                    ref={qrisInputRef}
+                    onChange={(e) => handleFileUpload(e, 'qris_image')}
+                    accept="image/*"
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    disabled={uploadingField === 'qris_image'}
+                    onClick={() => qrisInputRef.current?.click()}
+                    className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                  >
+                    {uploadingField === 'qris_image' ? 'Mengunggah...' : '📁 Unggah Barcode QRIS'}
+                  </button>
+                  <input
+                    type="text"
+                    value={settings.qris_image || ''}
+                    onChange={(e) => handleChange('qris_image', e.target.value)}
+                    placeholder="URL gambar QRIS"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-700 font-mono focus:bg-white"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
+                Petunjuk Transfer / Catatan Pembayaran
+              </label>
+              <textarea
+                rows={2}
+                value={settings.payment_instructions || ''}
+                onChange={(e) => handleChange('payment_instructions', e.target.value)}
+                placeholder="Mohon cantumkan nomor invoice saat transfer dan kirimkan bukti resi ke WhatsApp admin."
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 focus:bg-white focus:border-brand-navy"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={handleCancel}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={savingSection === 'payment'}
+                onClick={() => handleSaveSection('payment', 'Rekening & Pembayaran')}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-brand-navy hover:bg-brand-navy-light text-white shadow-sm transition-all cursor-pointer disabled:opacity-50"
+              >
+                {savingSection === 'payment' ? 'Menyimpan...' : 'Simpan Rekening'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ========================================================================= */}
+      {/* SECTION 3: Kontak & WhatsApp Admin                                       */}
       {/* ========================================================================= */}
       <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 card-shadow space-y-4">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div>
             <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
               <PhoneIcon size={18} className="text-brand-navy" />
-              <span>Kontak & WhatsApp</span>
+              <span>Kontak & WhatsApp Admin</span>
             </h2>
             <p className="text-[11px] text-slate-400">Nomor penerima pesanan dan kontak layanan pelanggan</p>
           </div>
@@ -326,7 +722,7 @@ export default function AdminSettingsPage() {
       </div>
 
       {/* ========================================================================= */}
-      {/* SECTION 2: Lokasi Kantor & Google Maps                                   */}
+      {/* SECTION 4: Lokasi Kantor & Google Maps                                   */}
       {/* ========================================================================= */}
       <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 card-shadow space-y-4">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -535,7 +931,144 @@ export default function AdminSettingsPage() {
       </div>
 
       {/* ========================================================================= */}
-      {/* SECTION 3: SEO, Social Share & Webmaster Tracking (LENGKAP)                */}
+      {/* SECTION 5: Media Sosial & Ulasan Google Maps                             */}
+      {/* ========================================================================= */}
+      <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 card-shadow space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div>
+            <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+              <InstagramIcon size={18} className="text-brand-navy" />
+              <span>Media Sosial & Ulasan Pelanggan</span>
+            </h2>
+            <p className="text-[11px] text-slate-400">Tautan akun Instagram, TikTok, Facebook, dan link Google Review</p>
+          </div>
+
+          {editingSection !== 'social' ? (
+            <button
+              type="button"
+              onClick={() => {
+                setEditingSection('social');
+                setMapCheckMessage(null);
+              }}
+              className="text-xs font-bold text-brand-navy hover:text-brand-navy-light underline cursor-pointer px-2 py-1"
+            >
+              Edit
+            </button>
+          ) : (
+            <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
+              Mode Edit
+            </span>
+          )}
+        </div>
+
+        {/* View Mode */}
+        {editingSection !== 'social' ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1 text-xs sm:text-sm">
+            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
+              <span className="text-slate-400 text-xs block mb-1">Instagram</span>
+              <span className="font-bold text-slate-900 block truncate">
+                {settings.social_instagram || '-'}
+              </span>
+            </div>
+            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
+              <span className="text-slate-400 text-xs block mb-1">TikTok</span>
+              <span className="font-bold text-slate-900 block truncate">
+                {settings.social_tiktok || '-'}
+              </span>
+            </div>
+            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
+              <span className="text-slate-400 text-xs block mb-1">Facebook Page</span>
+              <span className="font-bold text-slate-900 block truncate">
+                {settings.social_facebook || '-'}
+              </span>
+            </div>
+            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
+              <span className="text-slate-400 text-xs block mb-1">Link Ulasan Google Maps</span>
+              <span className="font-bold text-slate-900 block truncate font-mono text-xs">
+                {settings.google_review_url ? 'Sudah Terpasang' : '-'}
+              </span>
+            </div>
+          </div>
+        ) : (
+          /* Edit Mode Form */
+          <div className="space-y-4 pt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
+                  Akun Instagram
+                </label>
+                <input
+                  type="text"
+                  value={settings.social_instagram || ''}
+                  onChange={(e) => handleChange('social_instagram', e.target.value)}
+                  placeholder="@rentcar.id atau https://instagram.com/..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 focus:bg-white focus:border-brand-navy"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
+                  Akun TikTok
+                </label>
+                <input
+                  type="text"
+                  value={settings.social_tiktok || ''}
+                  onChange={(e) => handleChange('social_tiktok', e.target.value)}
+                  placeholder="@rentcar_official"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 focus:bg-white focus:border-brand-navy"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
+                  Halaman Facebook
+                </label>
+                <input
+                  type="text"
+                  value={settings.social_facebook || ''}
+                  onChange={(e) => handleChange('social_facebook', e.target.value)}
+                  placeholder="https://facebook.com/rentcar"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 focus:bg-white focus:border-brand-navy"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
+                  Link Google Maps Review / Ulasan
+                </label>
+                <input
+                  type="url"
+                  value={settings.google_review_url || ''}
+                  onChange={(e) => handleChange('google_review_url', e.target.value)}
+                  placeholder="https://g.page/r/xxx/review"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 font-mono text-xs focus:bg-white focus:border-brand-navy"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={handleCancel}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={savingSection === 'social'}
+                onClick={() => handleSaveSection('social', 'Media Sosial')}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-brand-navy hover:bg-brand-navy-light text-white shadow-sm transition-all cursor-pointer disabled:opacity-50"
+              >
+                {savingSection === 'social' ? 'Menyimpan...' : 'Simpan Media Sosial'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ========================================================================= */}
+      {/* SECTION 6: SEO, Social Share & Webmaster Tracking                         */}
       {/* ========================================================================= */}
       <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 card-shadow space-y-6">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -786,17 +1319,17 @@ export default function AdminSettingsPage() {
                     <input
                       type="file"
                       ref={ogFileInputRef}
-                      onChange={handleOgUpload}
+                      onChange={(e) => handleFileUpload(e, 'og_image')}
                       accept="image/*"
                       className="hidden"
                     />
                     <button
                       type="button"
-                      disabled={uploadingOg}
+                      disabled={uploadingField === 'og_image'}
                       onClick={() => ogFileInputRef.current?.click()}
                       className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
                     >
-                      {uploadingOg ? 'Mengunggah...' : '📁 Unggah Gambar Banner dari Komputer'}
+                      {uploadingField === 'og_image' ? 'Mengunggah...' : '📁 Unggah Gambar Banner dari Komputer'}
                     </button>
                     <input
                       type="text"
