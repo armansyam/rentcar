@@ -27,6 +27,10 @@ export default function AdminOverviewPage() {
     CANCELLED: 'bg-gray-100 text-gray-500 border-gray-200',
   };
 
+  const activeRentalsList = db.prepare("SELECT * FROM inquiries WHERE status = 'ACTIVE_RENTAL'").all() as any[];
+  const todayStr = new Date().toISOString().split('T')[0];
+  const overdueRentals = activeRentalsList.filter((r) => r.end_date && r.end_date < todayStr);
+
   return (
     <div className="space-y-8">
       {/* Top Welcome Header */}
@@ -48,6 +52,29 @@ export default function AdminOverviewPage() {
           <span>Tambah Mobil Baru</span>
         </Link>
       </div>
+
+      {/* OVERDUE ALERT BANNER ON DASHBOARD */}
+      {overdueRentals.length > 0 && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-rose-50 border-2 border-rose-300 text-rose-950 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg animate-pulse">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <span className="text-3xl sm:text-4xl shrink-0">🚨</span>
+            <div>
+              <h3 className="font-black text-base sm:text-lg text-rose-900">
+                PERINGATAN OVERTIME: {overdueRentals.length} Mobil Melewati Batas Waktu Pengembalian!
+              </h3>
+              <p className="text-xs sm:text-sm text-rose-700 mt-0.5">
+                Terdapat unit yang belum dikembalikan sesuai jadwal sewa. Segera hubungi penyewa atau pantau GPS.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/admin/inquiry"
+            className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs shrink-0 shadow-md transition-all text-center"
+          >
+            Buka Tab Sedang Disewa ({overdueRentals.length})
+          </Link>
+        </div>
+      )}
 
       {/* 4 Overview Statistics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">

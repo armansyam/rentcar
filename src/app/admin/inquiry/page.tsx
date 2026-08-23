@@ -162,12 +162,20 @@ export default function AdminInquiriesPage() {
   const openReturnModal = (item: any) => {
     setReturnModalItem(item);
     setOdometerEnd(item.odometer_end || (item.odometer_start ? item.odometer_start + 250 : 45250));
-    setOvertimeHours(item.overtime_hours || 0);
+    
+    // Auto-calculate suggested overtime hours if past due date
+    const timeStatus = getRentalTimeStatus(item.end_date);
+    const suggestedOvertime = timeStatus.status === 'OVERDUE' ? timeStatus.overdueHours : (item.overtime_hours || 0);
+    setOvertimeHours(suggestedOvertime);
     setOvertimeRatePerHour(50000);
     setFuelCharge(item.fuel_charge || 0);
     setDamageCharge(item.damage_charge || 0);
     setPaymentMethodRefund(item.payment_method_deposit || 'Transfer BCA');
-    setAdminNotes('Mobil kembali dalam kondisi baik. Sisa uang jaminan telah ditransfer balik.');
+    setAdminNotes(
+      timeStatus.status === 'OVERDUE'
+        ? `Mobil terlambat ${Math.abs(timeStatus.daysDiff)} hari dari jadwal sewa. Denda overtime telah dikalkulasikan.`
+        : 'Mobil kembali dalam kondisi baik. Sisa uang jaminan telah ditransfer balik.'
+    );
   };
 
   const calculatedOvertimeFee = overtimeHours * overtimeRatePerHour;
@@ -218,6 +226,51 @@ Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
     setTimeout(() => setCopiedText(false), 2500);
   };
 
+  // Helper to calculate countdown / overdue status for active rentals
+  const getRentalTimeStatus = (endDateStr: string) => {
+    if (!endDateStr) return { status: 'NORMAL', label: 'Jadwal Normal', daysDiff: 0, overdueHours: 0 };
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Parse date (supports YYYY-MM-DD or DD/MM/YYYY)
+    let end: Date;
+    if (endDateStr.includes('/')) {
+      const parts = endDateStr.split('/');
+      end = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+    } else {
+      end = new Date(endDateStr);
+    }
+    end.setHours(0, 0, 0, 0);
+    
+    const diffTime = end.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays < 0) {
+      const overdueDays = Math.abs(diffDays);
+      return {
+        status: 'OVERDUE',
+        label: `🚨 Terlambat ${overdueDays} Hari`,
+        daysDiff: diffDays,
+        overdueHours: overdueDays * 24,
+      };
+    } else if (diffDays === 0) {
+      return {
+        status: 'TODAY',
+        label: '⏳ Harus Kembali Hari Ini',
+        daysDiff: 0,
+        overdueHours: 0,
+      };
+    } else {
+      return {
+        status: 'ACTIVE',
+        label: `🟢 Sisa ${diffDays} Hari`,
+        daysDiff: diffDays,
+        overdueHours: 0,
+      };
+    }
+  };
+
   // Categorize inquiries per tab
   const inquiryList = inquiries.filter((inq) =>
     ['NEW', 'CHECKING', 'AVAILABLE', 'NOT_AVAILABLE'].includes(inq.status)
@@ -226,6 +279,11 @@ Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
   const activeList = inquiries.filter((inq) => inq.status === 'ACTIVE_RENTAL');
   const historyList = inquiries.filter((inq) =>
     ['COMPLETED', 'CANCELLED'].includes(inq.status)
+  );
+
+  // List of overdue rentals in Tab 3
+  const overdueActiveList = activeList.filter(
+    (inq) => getRentalTimeStatus(inq.end_date).status === 'OVERDUE'
   );
 
   const getDisplayedList = () => {
@@ -245,7 +303,21 @@ Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
 
   const displayedList = getDisplayedList();
 
-  const statusBadge = (status: string) => {
+  const statusBadge = (status: string, timeStatus?: any) => {
+    if (status === 'ACTIVE_RENTAL' && timeStatus?.status === 'OVERDUE') {
+      return (
+        <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-rose-600 text-white border border-rose-700 animate-pulse tracking-wide shadow-sm">
+          🚨 {timeStatus.label}
+        </span>
+      );
+    }
+    if (status === 'ACTIVE_RENTAL' && timeStatus?.status === 'TODAY') {
+      return (
+        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500 text-white border border-amber-600 tracking-wide">
+          ⏳ Kembali Hari Ini
+        </span>
+      );
+    }
     switch (status) {
       case 'NEW':
         return <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-200">Inquiry Baru</span>;
@@ -277,10 +349,36 @@ Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
             Manajemen Sewa & Inquiry
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Input pembayaran DP, pelunasan, uang jaminan deposit, kalkulasi denda overtime, dan kirim rincian ke WhatsApp customer.
+            Input pembayaran DP, pelunasan, uang jaminan deposit, pantau notifikasi overtime, dan kirim rincian ke WhatsApp customer.
           </p>
         </div>
       </div>
+
+      {/* OVERDUE ALERT BANNER */}
+      {overdueActiveList.length > 0 && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-rose-50 border-2 border-rose-300 text-rose-950 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg animate-pulse">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <span className="text-3xl sm:text-4xl shrink-0">🚨</span>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-black text-base sm:text-lg text-rose-900">
+                  PERINGATAN OVERTIME: {overdueActiveList.length} Mobil Melewati Batas Waktu Pengembalian!
+                </h3>
+              </div>
+              <p className="text-xs sm:text-sm text-rose-700 mt-0.5">
+                Unit belum dikembalikan sesuai jadwal sewa. Segera hubungi penyewa via WhatsApp atau cek posisi GPS mobil.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab('active')}
+            className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs shrink-0 shadow-md transition-all active:scale-98 cursor-pointer"
+          >
+            Lihat Unit Overtime ({overdueActiveList.length})
+          </button>
+        </div>
+      )}
 
       {copiedText && (
         <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2">
@@ -295,7 +393,7 @@ Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
         <button
           type="button"
           onClick={() => setActiveTab('inquiry')}
-          className={`p-3.5 sm:p-4 rounded-2xl border text-left transition-all relative ${
+          className={`p-3.5 sm:p-4 rounded-2xl border text-left transition-all relative cursor-pointer ${
             activeTab === 'inquiry'
               ? 'bg-brand-navy text-white border-brand-navy shadow-md ring-2 ring-brand-navy/20'
               : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
@@ -321,7 +419,7 @@ Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
         <button
           type="button"
           onClick={() => setActiveTab('booking')}
-          className={`p-3.5 sm:p-4 rounded-2xl border text-left transition-all relative ${
+          className={`p-3.5 sm:p-4 rounded-2xl border text-left transition-all relative cursor-pointer ${
             activeTab === 'booking'
               ? 'bg-purple-900 text-white border-purple-900 shadow-md ring-2 ring-purple-900/20'
               : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
@@ -347,28 +445,41 @@ Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
         <button
           type="button"
           onClick={() => setActiveTab('active')}
-          className={`p-3.5 sm:p-4 rounded-2xl border text-left transition-all relative ${
+          className={`p-3.5 sm:p-4 rounded-2xl border text-left transition-all relative cursor-pointer ${
             activeTab === 'active'
-              ? 'bg-emerald-800 text-white border-emerald-800 shadow-md ring-2 ring-emerald-800/20'
+              ? overdueActiveList.length > 0
+                ? 'bg-rose-900 text-white border-rose-900 shadow-md ring-2 ring-rose-500/40'
+                : 'bg-emerald-800 text-white border-emerald-800 shadow-md ring-2 ring-emerald-800/20'
+              : overdueActiveList.length > 0
+              ? 'bg-rose-50 text-rose-900 border-rose-300 hover:bg-rose-100'
               : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
           }`}
         >
           <div className="flex items-center justify-between mb-1">
             <span className="text-xs font-bold uppercase tracking-wider opacity-80">Tahap 3</span>
-            <span
-              className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold ${
-                activeTab === 'active' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-700'
-              }`}
-            >
-              {activeList.length}
-            </span>
+            <div className="flex items-center gap-1">
+              {overdueActiveList.length > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white animate-pulse">
+                  🚨 {overdueActiveList.length} Overdue
+                </span>
+              )}
+              <span
+                className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold ${
+                  activeTab === 'active' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-700'
+                }`}
+              >
+                {activeList.length}
+              </span>
+            </div>
           </div>
           <div className="font-extrabold text-sm sm:text-base flex items-center gap-1.5">
             <span>Sedang Disewa</span>
-            {activeList.length > 0 && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />}
+            {activeList.length > 0 && (
+              <span className={`w-2 h-2 rounded-full ${overdueActiveList.length > 0 ? 'bg-rose-400' : 'bg-emerald-400'} animate-ping`} />
+            )}
           </div>
-          <p className={`text-[11px] mt-0.5 truncate ${activeTab === 'active' ? 'text-emerald-200' : 'text-slate-500'}`}>
-            Deposit ditahan & pantau jam
+          <p className={`text-[11px] mt-0.5 truncate ${activeTab === 'active' ? 'text-white/80' : 'text-slate-500'}`}>
+            {overdueActiveList.length > 0 ? '⚠️ Ada mobil melewati batas!' : 'Deposit ditahan & pantau jam'}
           </p>
         </button>
 
@@ -376,7 +487,7 @@ Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
         <button
           type="button"
           onClick={() => setActiveTab('history')}
-          className={`p-3.5 sm:p-4 rounded-2xl border text-left transition-all relative ${
+          className={`p-3.5 sm:p-4 rounded-2xl border text-left transition-all relative cursor-pointer ${
             activeTab === 'history'
               ? 'bg-slate-800 text-white border-slate-800 shadow-md'
               : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
@@ -412,7 +523,7 @@ Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
                 {activeTab === 'booking' && <th className="px-5 py-3.5">DP & Metode Bayar</th>}
                 {activeTab === 'active' && <th className="px-5 py-3.5">Deposit Jaminan & KM</th>}
                 {activeTab === 'history' && <th className="px-5 py-3.5">Rincian Denda & Refund</th>}
-                <th className="px-5 py-3.5">Status</th>
+                <th className="px-5 py-3.5">Status & Waktu</th>
                 <th className="px-5 py-3.5 text-right">Aksi Admin</th>
               </tr>
             </thead>
@@ -424,102 +535,127 @@ Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
                   </td>
                 </tr>
               ) : (
-                displayedList.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
-                    {/* Invoice & Customer */}
-                    <td className="px-5 py-4">
-                      <div className="font-extrabold text-brand-navy font-mono text-xs">
-                        {item.invoice_no}
-                      </div>
-                      <div className="font-bold text-slate-900 mt-0.5">{item.customer_name}</div>
-                      <div className="text-slate-500 text-xs flex items-center gap-1 mt-0.5">
-                        <WhatsAppIcon size={13} className="text-brand-green-wa" />
-                        <span>{item.customer_phone}</span>
-                      </div>
-                    </td>
+                displayedList.map((item) => {
+                  const timeStatus = activeTab === 'active' ? getRentalTimeStatus(item.end_date) : null;
+                  const isOverdue = timeStatus?.status === 'OVERDUE';
+                  const isToday = timeStatus?.status === 'TODAY';
 
-                    {/* Car Name & Destination */}
-                    <td className="px-5 py-4">
-                      <div className="font-bold text-slate-900 flex items-center gap-1.5">
-                        <CarIcon size={15} className="text-slate-500" />
-                        <span>{item.car_name}</span>
-                      </div>
-                      <div className="text-slate-500 text-xs mt-0.5">
-                        Tujuan: {item.destination || 'Dalam Kota'}
-                      </div>
-                    </td>
-
-                    {/* Date Schedule */}
-                    <td className="px-5 py-4 text-xs">
-                      <div className="font-bold text-slate-800">
-                        {item.start_date} &rarr; {item.end_date}
-                      </div>
-                      <div className="text-slate-500 mt-0.5">
-                        Durasi: <span className="font-semibold text-slate-700">{item.duration_days} Hari</span>
-                      </div>
-                    </td>
-
-                    {/* Tab 1: Estimasi Biaya */}
-                    {activeTab === 'inquiry' && (
-                      <td className="px-5 py-4 text-xs">
-                        <div className="font-bold text-slate-900">
-                          Rp {(item.total_price || item.duration_days * 350000).toLocaleString('id-ID')}
+                  return (
+                    <tr
+                      key={item.id}
+                      className={`transition-colors ${
+                        isOverdue
+                          ? 'bg-rose-50/90 border-l-4 border-l-rose-500 hover:bg-rose-100/90'
+                          : isToday
+                          ? 'bg-amber-50/60 border-l-4 border-l-amber-500 hover:bg-amber-100/70'
+                          : 'hover:bg-slate-50/70'
+                      }`}
+                    >
+                      {/* Invoice & Customer */}
+                      <td className="px-5 py-4">
+                        <div className="font-extrabold text-brand-navy font-mono text-xs">
+                          {item.invoice_no}
                         </div>
-                        <div className="text-slate-400 text-[11px]">Belum bayar DP</div>
-                      </td>
-                    )}
-
-                    {/* Tab 2: DP Column */}
-                    {activeTab === 'booking' && (
-                      <td className="px-5 py-4 text-xs">
-                        <div className="font-bold text-purple-700">
-                          DP: Rp {(item.dp_amount || 200000).toLocaleString('id-ID')}
-                        </div>
-                        <span className="inline-block px-2 py-0.5 rounded bg-purple-50 text-purple-700 text-[10px] font-semibold mt-0.5 border border-purple-200">
-                          {item.payment_method_dp || 'Transfer BCA'}
-                        </span>
-                        <div className="text-slate-500 text-[11px] mt-0.5">
-                          Total: Rp {(item.total_price || 0).toLocaleString('id-ID')}
+                        <div className="font-bold text-slate-900 mt-0.5">{item.customer_name}</div>
+                        <div className="text-slate-500 text-xs flex items-center gap-1 mt-0.5">
+                          <WhatsAppIcon size={13} className="text-brand-green-wa" />
+                          <span>{item.customer_phone}</span>
                         </div>
                       </td>
-                    )}
 
-                    {/* Tab 3: Deposit & KM Column */}
-                    {activeTab === 'active' && (
-                      <td className="px-5 py-4 text-xs">
-                        <div className="font-bold text-emerald-700">
-                          Deposit: Rp {(item.deposit_amount || 500000).toLocaleString('id-ID')}
+                      {/* Car Name & Destination */}
+                      <td className="px-5 py-4">
+                        <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                          <CarIcon size={15} className="text-slate-500" />
+                          <span>{item.car_name}</span>
                         </div>
-                        <span className="inline-block px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px] font-semibold mt-0.5 border border-emerald-200">
-                          {item.payment_method_deposit || 'Transfer BCA'}
-                        </span>
-                        <div className="text-slate-500 text-[11px] mt-0.5">
-                          KM Awal: {item.odometer_start ? item.odometer_start.toLocaleString('id-ID') : '-'} KM
+                        <div className="text-slate-500 text-xs mt-0.5">
+                          Tujuan: {item.destination || 'Dalam Kota'}
                         </div>
                       </td>
-                    )}
 
-                    {/* Tab 4: History Denda Column */}
-                    {activeTab === 'history' && (
+                      {/* Date Schedule */}
                       <td className="px-5 py-4 text-xs">
-                        <div className="font-semibold text-slate-700">
-                          {item.actual_return_date ? `Kembali: ${item.actual_return_date}` : 'Selesai'}
+                        <div className="font-bold text-slate-800">
+                          {item.start_date} &rarr; {item.end_date}
                         </div>
-                        <div className="text-[11px] text-slate-500 mt-0.5">
-                          Deposit: <span className="font-semibold">{item.deposit_status === 'REFUNDED' ? 'Di-Refund' : 'Dipotong'}</span>
+                        <div className="text-slate-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                          <span>Durasi: <strong className="text-slate-700">{item.duration_days} Hari</strong></span>
+                          {timeStatus && (
+                            <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-extrabold ${
+                              isOverdue
+                                ? 'bg-rose-200 text-rose-800 animate-pulse'
+                                : isToday
+                                ? 'bg-amber-200 text-amber-900 font-bold'
+                                : 'bg-emerald-100 text-emerald-800 font-semibold'
+                            }`}>
+                              {timeStatus.label}
+                            </span>
+                          )}
                         </div>
-                        {(item.overtime_fee > 0 || item.fuel_charge > 0 || item.damage_charge > 0) && (
-                          <div className="text-rose-600 font-bold text-[11px] mt-0.5">
-                            Total Denda/Charge: Rp {((item.overtime_fee || 0) + (item.fuel_charge || 0) + (item.damage_charge || 0)).toLocaleString('id-ID')}
+                      </td>
+
+                      {/* Tab 1: Estimasi Biaya */}
+                      {activeTab === 'inquiry' && (
+                        <td className="px-5 py-4 text-xs">
+                          <div className="font-bold text-slate-900">
+                            Rp {(item.total_price || item.duration_days * 350000).toLocaleString('id-ID')}
                           </div>
-                        )}
-                      </td>
-                    )}
+                          <div className="text-slate-400 text-[11px]">Belum bayar DP</div>
+                        </td>
+                      )}
 
-                    {/* Status Badge */}
-                    <td className="px-5 py-4">
-                      {statusBadge(item.status)}
-                    </td>
+                      {/* Tab 2: DP Column */}
+                      {activeTab === 'booking' && (
+                        <td className="px-5 py-4 text-xs">
+                          <div className="font-bold text-purple-700">
+                            DP: Rp {(item.dp_amount || 200000).toLocaleString('id-ID')}
+                          </div>
+                          <span className="inline-block px-2 py-0.5 rounded bg-purple-50 text-purple-700 text-[10px] font-semibold mt-0.5 border border-purple-200">
+                            {item.payment_method_dp || 'Transfer BCA'}
+                          </span>
+                          <div className="text-slate-500 text-[11px] mt-0.5">
+                            Total: Rp {(item.total_price || 0).toLocaleString('id-ID')}
+                          </div>
+                        </td>
+                      )}
+
+                      {/* Tab 3: Deposit & KM Column */}
+                      {activeTab === 'active' && (
+                        <td className="px-5 py-4 text-xs">
+                          <div className="font-bold text-emerald-700">
+                            Deposit: Rp {(item.deposit_amount || 500000).toLocaleString('id-ID')}
+                          </div>
+                          <span className="inline-block px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px] font-semibold mt-0.5 border border-emerald-200">
+                            {item.payment_method_deposit || 'Transfer BCA'}
+                          </span>
+                          <div className="text-slate-500 text-[11px] mt-0.5">
+                            KM Awal: {item.odometer_start ? item.odometer_start.toLocaleString('id-ID') : '-'} KM
+                          </div>
+                        </td>
+                      )}
+
+                      {/* Tab 4: History Denda Column */}
+                      {activeTab === 'history' && (
+                        <td className="px-5 py-4 text-xs">
+                          <div className="font-semibold text-slate-700">
+                            {item.actual_return_date ? `Kembali: ${item.actual_return_date}` : 'Selesai'}
+                          </div>
+                          <div className="text-[11px] text-slate-500 mt-0.5">
+                            Deposit: <span className="font-semibold">{item.deposit_status === 'REFUNDED' ? 'Di-Refund' : 'Dipotong'}</span>
+                          </div>
+                          {(item.overtime_fee > 0 || item.fuel_charge > 0 || item.damage_charge > 0) && (
+                            <div className="text-rose-600 font-bold text-[11px] mt-0.5">
+                              Total Denda/Charge: Rp {((item.overtime_fee || 0) + (item.fuel_charge || 0) + (item.damage_charge || 0)).toLocaleString('id-ID')}
+                            </div>
+                          )}
+                        </td>
+                      )}
+
+                      {/* Status Badge */}
+                      <td className="px-5 py-4">
+                        {statusBadge(item.status, timeStatus)}
+                      </td>
 
                     {/* Operational Action Buttons */}
                     <td className="px-5 py-4 text-right">
@@ -602,7 +738,8 @@ Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
                       </div>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>
