@@ -19,6 +19,11 @@ import {
   ShieldCheckIcon,
   EyeIcon,
   EyeOffIcon,
+  DatabaseIcon,
+  DownloadIcon,
+  UploadIcon,
+  TrashIcon,
+  RefreshCwIcon,
 } from '@/components/ui/Icons';
 
 function getGoogleMapsEmbedUrl(inputUrl?: string, address?: string, officeName?: string): string {
@@ -36,6 +41,21 @@ function getGoogleMapsEmbedUrl(inputUrl?: string, address?: string, officeName?:
 }
 
 type SectionType = 'profile' | 'payment' | 'contact' | 'location' | 'social' | 'seo' | 'security' | null;
+
+interface DatabaseInfo {
+  dbPath: string;
+  dbSize: string;
+  lastModified: string;
+  totalCars: number;
+  totalInquiries: number;
+  totalSettings: number;
+  backups: Array<{
+    filename: string;
+    size: string;
+    createdAt: string;
+    createdFormatted: string;
+  }>;
+}
 
 export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<Record<string, string>>({});
@@ -67,6 +87,24 @@ export default function AdminSettingsPage() {
   const [securityError, setSecurityError] = useState<string | null>(null);
   const [savingSecurity, setSavingSecurity] = useState(false);
 
+  // Database Backup & Restore state
+  const [dbInfo, setDbInfo] = useState<DatabaseInfo | null>(null);
+  const [loadingDb, setLoadingDb] = useState(false);
+  const [dbActionLoading, setDbActionLoading] = useState<string | null>(null);
+  const [dbMessage, setDbMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [restoreConfirmFile, setRestoreConfirmFile] = useState<string | null>(null);
+  const dbFileInputRef = useRef<HTMLInputElement>(null);
+
+  const fetchDbInfo = async () => {
+    try {
+      const res = await fetch('/api/admin/database?action=info');
+      const data = await res.json();
+      if (data.success) {
+        setDbInfo(data.data);
+      }
+    } catch (_) {}
+  };
+
   useEffect(() => {
     fetch('/api/settings')
       .then((res) => res.json())
@@ -78,6 +116,8 @@ export default function AdminSettingsPage() {
         }
       })
       .finally(() => setLoading(false));
+
+    fetchDbInfo();
   }, []);
 
   const handleChange = (key: string, value: string) => {
@@ -192,6 +232,121 @@ export default function AdminSettingsPage() {
     }
   };
 
+  // Database actions
+  const handleCreateSnapshot = async () => {
+    setDbActionLoading('snapshot');
+    setDbMessage(null);
+    try {
+      const res = await fetch('/api/admin/database', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create_snapshot' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDbMessage({ type: 'success', text: data.message });
+        fetchDbInfo();
+      } else {
+        setDbMessage({ type: 'error', text: data.error || 'Gagal membuat snapshot.' });
+      }
+    } catch (err: any) {
+      setDbMessage({ type: 'error', text: err.message || 'Kesalahan jaringan saat membuat snapshot.' });
+    } finally {
+      setDbActionLoading(null);
+    }
+  };
+
+  const handleRestoreSnapshot = async (filename: string) => {
+    setDbActionLoading(`restore-${filename}`);
+    setDbMessage(null);
+    try {
+      const res = await fetch('/api/admin/database', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'restore_snapshot', filename }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDbMessage({ type: 'success', text: data.message });
+        setRestoreConfirmFile(null);
+        fetchDbInfo();
+        // Refresh settings as well
+        fetch('/api/settings').then((r) => r.json()).then((d) => {
+          if (d.success) setSettings(d.data);
+        });
+      } else {
+        setDbMessage({ type: 'error', text: data.error || 'Gagal merestore snapshot.' });
+      }
+    } catch (err: any) {
+      setDbMessage({ type: 'error', text: err.message || 'Kesalahan jaringan saat restore.' });
+    } finally {
+      setDbActionLoading(null);
+    }
+  };
+
+  const handleDeleteSnapshot = async (filename: string) => {
+    if (!confirm(`Hapus file snapshot "${filename}"? Tindakan ini tidak dapat dibatalkan.`)) return;
+    setDbActionLoading(`delete-${filename}`);
+    setDbMessage(null);
+    try {
+      const res = await fetch('/api/admin/database', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete_snapshot', filename }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDbMessage({ type: 'success', text: data.message });
+        fetchDbInfo();
+      } else {
+        setDbMessage({ type: 'error', text: data.error || 'Gagal menghapus snapshot.' });
+      }
+    } catch (err: any) {
+      setDbMessage({ type: 'error', text: err.message || 'Kesalahan jaringan saat hapus.' });
+    } finally {
+      setDbActionLoading(null);
+    }
+  };
+
+  const handleImportDatabaseFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!confirm(`PERINGATAN: Apakah Anda yakin ingin me-restore database dari file "${file.name}"? Data mobil, pesanan, dan pengaturan saat ini akan digantikan.`)) {
+      if (dbFileInputRef.current) dbFileInputRef.current.value = '';
+      return;
+    }
+
+    setDbActionLoading('import');
+    setDbMessage(null);
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/admin/database', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDbMessage({ type: 'success', text: data.message });
+        fetchDbInfo();
+        // Refresh active settings
+        fetch('/api/settings').then((r) => r.json()).then((d) => {
+          if (d.success) setSettings(d.data);
+        });
+      } else {
+        setDbMessage({ type: 'error', text: data.error || 'Gagal mengimpor database.' });
+      }
+    } catch (err: any) {
+      setDbMessage({ type: 'error', text: err.message || 'Kesalahan jaringan saat mengimpor database.' });
+    } finally {
+      setDbActionLoading(null);
+      if (dbFileInputRef.current) dbFileInputRef.current.value = '';
+    }
+  };
+
   const handleCheckMapUrl = async () => {
     const mapUrl = settings.google_maps_url?.trim();
     if (!mapUrl) {
@@ -273,10 +428,10 @@ export default function AdminSettingsPage() {
       {/* Page Title */}
       <div>
         <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-          Pengaturan Bisnis, Kontak & Keamanan
+          Pengaturan Bisnis, Keamanan & Database
         </h1>
         <p className="text-xs sm:text-sm text-slate-500 mt-1">
-          Kelola profil bisnis, rekening bank resmi & QRIS, kontak WhatsApp admin, alamat kantor, media sosial, SEO website, dan keamanan login admin.
+          Kelola profil bisnis, rekening bank resmi, kontak WhatsApp, alamat kantor, SEO website, keamanan akun admin, dan cadangan database SQLite.
         </p>
       </div>
 
@@ -391,7 +546,6 @@ export default function AdminSettingsPage() {
 
             {/* Logo & Favicon Upload */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Logo Upload */}
               <div>
                 <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
                   Logo Resmi (Navbar & Header)
@@ -438,7 +592,6 @@ export default function AdminSettingsPage() {
                 </div>
               </div>
 
-              {/* Favicon Upload */}
               <div>
                 <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
                   Favicon Browser (Tab Browser)
@@ -893,7 +1046,7 @@ export default function AdminSettingsPage() {
               </span>
             </div>
 
-            {/* Interactive Live Map Preview in View Mode */}
+            {/* Interactive Live Map Preview */}
             <div className="rounded-2xl overflow-hidden border border-slate-200 bg-slate-100">
               <div className="p-3 bg-slate-100/90 border-b border-slate-200 flex items-center justify-between text-xs">
                 <div className="flex items-center gap-1.5 text-slate-700 font-bold">
@@ -1325,7 +1478,6 @@ export default function AdminSettingsPage() {
         ) : (
           /* Edit Mode Form */
           <div className="space-y-6 pt-2 text-xs sm:text-sm">
-            {/* GRUP A: META TAG UTAMA */}
             <div className="space-y-4">
               <span className="text-xs font-black uppercase tracking-wider text-brand-navy block border-b border-slate-100 pb-1.5">
                 1. Meta Tag & Deskripsi Mesin Pencari
@@ -1383,7 +1535,7 @@ export default function AdminSettingsPage() {
               </div>
             </div>
 
-            {/* GRUP B: DOMAIN & OPEN GRAPH (SOSIAL MEDIA / WHATSAPP) */}
+            {/* GRUP B: DOMAIN & OPEN GRAPH */}
             <div className="space-y-4 pt-2">
               <span className="text-xs font-black uppercase tracking-wider text-brand-navy block border-b border-slate-100 pb-1.5">
                 2. Domain & Pratinjau Link Sosial Media (Open Graph)
@@ -1755,6 +1907,248 @@ export default function AdminSettingsPage() {
             </div>
           </form>
         )}
+      </div>
+
+      {/* ========================================================================= */}
+      {/* SECTION 8: Manajemen Database, Cadangan & Restore                        */}
+      {/* ========================================================================= */}
+      <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 card-shadow space-y-5">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div>
+            <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+              <DatabaseIcon size={18} className="text-brand-navy" />
+              <span>Manajemen Database SQLite, Backup & Restore</span>
+            </h2>
+            <p className="text-[11px] text-slate-400">
+              Unduh salinan cadangan database, buat snapshot server di direktori <code>data/backups/</code>, atau pulihkan database dari file cadangan.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={fetchDbInfo}
+            className="text-xs font-bold text-slate-500 hover:text-slate-800 flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer"
+            title="Segarkan info database"
+          >
+            <RefreshCwIcon size={13} />
+            <span>Segarkan</span>
+          </button>
+        </div>
+
+        {/* Action feedback message */}
+        {dbMessage && (
+          <div
+            className={`p-4 rounded-2xl text-xs font-bold flex items-center gap-2.5 ${
+              dbMessage.type === 'success'
+                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                : 'bg-rose-50 text-rose-800 border border-rose-200'
+            }`}
+          >
+            <span>{dbMessage.type === 'success' ? '✅' : '⚠️'}</span>
+            <span>{dbMessage.text}</span>
+          </div>
+        )}
+
+        {/* Database Status Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
+            <span className="text-slate-400 text-[11px] block mb-0.5">Lokasi File Database</span>
+            <span className="font-mono font-bold text-slate-900 block truncate">
+              {dbInfo?.dbPath || 'data/rentcar.db'}
+            </span>
+          </div>
+
+          <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
+            <span className="text-slate-400 text-[11px] block mb-0.5">Ukuran Database</span>
+            <span className="font-bold text-brand-navy text-sm block">
+              {dbInfo?.dbSize || '0 KB'}
+            </span>
+          </div>
+
+          <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
+            <span className="text-slate-400 text-[11px] block mb-0.5">Total Armada & Pesanan</span>
+            <span className="font-bold text-slate-800 block">
+              {dbInfo?.totalCars ?? 0} Mobil · {dbInfo?.totalInquiries ?? 0} Pesanan
+            </span>
+          </div>
+
+          <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
+            <span className="text-slate-400 text-[11px] block mb-0.5">Terakhir Diperbarui</span>
+            <span className="font-semibold text-slate-700 block truncate text-[11px]">
+              {dbInfo?.lastModified || '-'}
+            </span>
+          </div>
+        </div>
+
+        {/* Primary Action Buttons */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="space-y-0.5">
+            <h3 className="font-extrabold text-slate-900 text-sm">Operasi Backup & Restore</h3>
+            <p className="text-xs text-slate-500">
+              Simpan salinan database ke komputer lokal Anda atau unggah file <code>.db</code> untuk memulihkan seluruh data.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0">
+            {/* 1. Direct Download Button */}
+            <a
+              href="/api/admin/database?action=download"
+              download
+              className="px-4 py-2.5 rounded-xl bg-brand-navy hover:bg-brand-navy-light text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all active:scale-98 cursor-pointer"
+            >
+              <DownloadIcon size={14} />
+              <span>Unduh File Database (.db)</span>
+            </a>
+
+            {/* 2. Create Server Snapshot */}
+            <button
+              type="button"
+              disabled={dbActionLoading === 'snapshot'}
+              onClick={handleCreateSnapshot}
+              className="px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all active:scale-98 cursor-pointer disabled:opacity-50"
+            >
+              {dbActionLoading === 'snapshot' ? (
+                <>
+                  <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                  <span>Membuat...</span>
+                </>
+              ) : (
+                <>
+                  <DatabaseIcon size={14} />
+                  <span>Simpan Snapshot ke Server</span>
+                </>
+              )}
+            </button>
+
+            {/* 3. Upload & Import DB File */}
+            <input
+              type="file"
+              ref={dbFileInputRef}
+              onChange={handleImportDatabaseFile}
+              accept=".db,.sqlite,.sqlite3"
+              className="hidden"
+            />
+            <button
+              type="button"
+              disabled={dbActionLoading === 'import'}
+              onClick={() => dbFileInputRef.current?.click()}
+              className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all active:scale-98 cursor-pointer disabled:opacity-50"
+            >
+              {dbActionLoading === 'import' ? (
+                <>
+                  <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                  <span>Mengimpor...</span>
+                </>
+              ) : (
+                <>
+                  <UploadIcon size={14} />
+                  <span>Unggah & Restore .db</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Server Snapshots List Table */}
+        <div className="space-y-2 pt-1">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+              <span>Daftar Snapshot Cadangan di Server (<code>data/backups/</code>)</span>
+            </span>
+            <span className="text-[11px] text-slate-400 font-semibold">
+              {dbInfo?.backups.length || 0} file snapshot tersimpan
+            </span>
+          </div>
+
+          {(!dbInfo?.backups || dbInfo.backups.length === 0) ? (
+            <div className="p-6 text-center rounded-2xl bg-slate-50 border border-slate-100 text-slate-400 text-xs">
+              Belum ada snapshot cadangan di direktori <code>data/backups/</code>. Klik tombol <strong>&ldquo;Simpan Snapshot ke Server&rdquo;</strong> di atas untuk membuat snapshot baru.
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                    <tr>
+                      <th className="py-3 px-4">Nama File Snapshot</th>
+                      <th className="py-3 px-4">Ukuran</th>
+                      <th className="py-3 px-4">Waktu Dibuat</th>
+                      <th className="py-3 px-4 text-right">Tindakan</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {dbInfo.backups.map((bak) => (
+                      <tr key={bak.filename} className="hover:bg-slate-50/60 transition-colors">
+                        <td className="py-3 px-4 font-mono font-bold text-slate-900 flex items-center gap-2">
+                          <DatabaseIcon size={14} className="text-slate-400" />
+                          <span>{bak.filename}</span>
+                        </td>
+                        <td className="py-3 px-4 font-semibold text-slate-700">{bak.size}</td>
+                        <td className="py-3 px-4 text-slate-500">{bak.createdFormatted}</td>
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {/* Download snapshot */}
+                            <a
+                              href={`/api/admin/database?action=download_snapshot&file=${encodeURIComponent(bak.filename)}`}
+                              download={bak.filename}
+                              className="p-1.5 rounded-lg text-slate-600 hover:text-brand-navy hover:bg-slate-100 cursor-pointer"
+                              title="Unduh file snapshot ini"
+                            >
+                              <DownloadIcon size={14} />
+                            </a>
+
+                            {/* Restore snapshot */}
+                            {restoreConfirmFile === bak.filename ? (
+                              <div className="flex items-center gap-1 bg-rose-50 p-1 rounded-lg border border-rose-200 animate-fade-in">
+                                <span className="text-[10px] font-bold text-rose-700 px-1">Yakin Restore?</span>
+                                <button
+                                  type="button"
+                                  disabled={dbActionLoading === `restore-${bak.filename}`}
+                                  onClick={() => handleRestoreSnapshot(bak.filename)}
+                                  className="px-2 py-0.5 rounded bg-rose-600 text-white font-bold text-[10px] hover:bg-rose-700 cursor-pointer"
+                                >
+                                  Ya, Pulihkan
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setRestoreConfirmFile(null)}
+                                  className="px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-bold text-[10px] hover:bg-slate-300 cursor-pointer"
+                                >
+                                  Batal
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setRestoreConfirmFile(bak.filename)}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-bold text-[11px] flex items-center gap-1 cursor-pointer transition-colors border border-emerald-200"
+                                title="Pulihkan database dari snapshot ini"
+                              >
+                                <RefreshCwIcon size={12} />
+                                <span>Restore</span>
+                              </button>
+                            )}
+
+                            {/* Delete snapshot */}
+                            <button
+                              type="button"
+                              disabled={dbActionLoading === `delete-${bak.filename}`}
+                              onClick={() => handleDeleteSnapshot(bak.filename)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer transition-colors"
+                              title="Hapus snapshot ini"
+                            >
+                              <TrashIcon size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
