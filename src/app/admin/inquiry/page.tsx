@@ -40,7 +40,8 @@ export default function AdminInquiriesPage() {
   const [extendModalItem, setExtendModalItem] = useState<any | null>(null);
   const [rescheduleModalItem, setRescheduleModalItem] = useState<any | null>(null);
 
-  // Form states for Modal 1 (Confirm DP)
+  // Form states for Modal 1 (Confirm DP & Diskon)
+  const [discountAmount, setDiscountAmount] = useState<number>(0);
   const [dpAmount, setDpAmount] = useState<number>(200000);
   const [paymentMethodDp, setPaymentMethodDp] = useState<string>('Transfer BCA');
   const [totalPrice, setTotalPrice] = useState<number>(0);
@@ -135,12 +136,21 @@ export default function AdminInquiriesPage() {
     }
   };
 
-  // 1. Action: Convert Inquiry to Confirmed Booking (DP)
+  // 1. Action: Convert Inquiry to Confirmed Booking (DP & Diskon)
   const openConfirmModal = (item: any) => {
     setConfirmModalItem(item);
+    const matchedCar =
+      carsList.find((c) => c.id === item.car_id) ||
+      carsList.find((c) => item.car_name && item.car_name.toLowerCase().includes(c.model.toLowerCase()));
+    const dailyRate = matchedCar ? matchedCar.price_per_day : Math.round((item.total_price || 350000) / (item.duration_days || 1)) || 350000;
+    const basePrice = (item.duration_days || 1) * dailyRate;
+    const initDiscount = item.discount_amount || 0;
+    const computedTotal = Math.max(0, basePrice - initDiscount);
+
+    setDiscountAmount(initDiscount);
+    setTotalPrice(computedTotal);
     setDpAmount(item.dp_amount || 200000);
     setPaymentMethodDp(item.payment_method_dp || 'Transfer BCA');
-    setTotalPrice(item.total_price || item.duration_days * 350000);
     setPaymentStatus('DP_PAID');
     setAdminNotes(item.notes_admin || 'DP telah diterima, verifikasi e-KTP & SIM A berhasil.');
   };
@@ -149,6 +159,7 @@ export default function AdminInquiriesPage() {
     if (!confirmModalItem) return;
     await handleUpdate(confirmModalItem.id, {
       status: 'CONFIRMED',
+      discount_amount: Number(discountAmount) || 0,
       dp_amount: Number(dpAmount),
       payment_method_dp: paymentMethodDp,
       total_price: Number(totalPrice),
@@ -370,7 +381,7 @@ Jadwal      : ${item.start_date} s/d ${item.end_date} (${item.duration_days} Har
 Tujuan      : ${item.destination || 'Dalam Kota'}
 ----------------------------------------
 *1. RINCIAN BIAYA SEWA:*
-• Total Biaya Sewa  : Rp ${totalSewa.toLocaleString('id-ID')}
+• Total Biaya Sewa  : Rp ${totalSewa.toLocaleString('id-ID')}${item.discount_amount > 0 ? ` (Sudah Diskon Rp ${item.discount_amount.toLocaleString('id-ID')})` : ''}
 • DP Masuk          : Rp ${dpMasuk.toLocaleString('id-ID')} (${item.payment_method_dp || 'Transfer'})
 • Sisa Pembayaran   : Rp ${sisaSewa.toLocaleString('id-ID')} (${item.payment_status === 'FULLY_PAID' ? 'LUNAS' : 'Belum Lunas'})
 `;
@@ -927,21 +938,118 @@ _Terima kasih telah mempercayakan perjalanan Anda kepada kami!_`;
             </div>
 
             <div className="space-y-4 text-xs sm:text-sm">
-              {/* Read-only Automatic Calculation Summary */}
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
-                <div className="flex items-center justify-between text-slate-600">
-                  <span>Unit Mobil & Jadwal:</span>
-                  <span className="font-bold text-slate-800">{confirmModalItem.car_name}</span>
+              {/* Read-only Automatic Calculation Summary with Optional Discount */}
+              {(() => {
+                const matchedCar =
+                  carsList.find((c) => c.id === confirmModalItem.car_id) ||
+                  carsList.find((c) => confirmModalItem.car_name && confirmModalItem.car_name.toLowerCase().includes(c.model.toLowerCase()));
+                const dailyRate = matchedCar
+                  ? matchedCar.price_per_day
+                  : Math.round((confirmModalItem.total_price || 350000) / (confirmModalItem.duration_days || 1)) || 350000;
+                const basePrice = (confirmModalItem.duration_days || 1) * dailyRate;
+                const netPrice = Math.max(0, basePrice - (discountAmount || 0));
+
+                return (
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
+                    <div className="flex items-center justify-between text-slate-600">
+                      <span>Unit Mobil & Jadwal:</span>
+                      <span className="font-bold text-slate-800">{confirmModalItem.car_name}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-slate-600">
+                      <span>Durasi Sewa:</span>
+                      <span className="font-bold text-slate-800">
+                        {confirmModalItem.duration_days} Hari ({confirmModalItem.start_date} &rarr; {confirmModalItem.end_date})
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-slate-600">
+                      <span>Tarif Normal ({matchedCar ? `${matchedCar.brand} ${matchedCar.model}` : 'Unit'}):</span>
+                      <span className="font-semibold text-slate-700">
+                        Rp {dailyRate.toLocaleString('id-ID')} / hari &times; {confirmModalItem.duration_days} Hari = <strong>Rp {basePrice.toLocaleString('id-ID')}</strong>
+                      </span>
+                    </div>
+
+                    {/* Discount row if applied */}
+                    {discountAmount > 0 && (
+                      <div className="flex items-center justify-between text-rose-700 font-bold border-t border-slate-200/80 pt-1.5">
+                        <span>Potongan Diskon:</span>
+                        <span>- Rp {discountAmount.toLocaleString('id-ID')}</span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between border-t border-slate-200 pt-2 text-slate-800">
+                      <span className="font-extrabold">Total Biaya Sewa Bersih:</span>
+                      <span className="font-black text-base text-brand-navy">
+                        Rp {netPrice.toLocaleString('id-ID')}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Form Input Potongan Diskon (Opsional) */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-bold text-slate-700 text-xs">
+                    🏷️ Potongan Diskon (Rp) <span className="text-slate-400 font-normal">(Opsional / Khusus Sewa Lama & Promo)</span>
+                  </label>
+                  {discountAmount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDiscountAmount(0);
+                        const matchedCar =
+                          carsList.find((c) => c.id === confirmModalItem.car_id) ||
+                          carsList.find((c) => confirmModalItem.car_name && confirmModalItem.car_name.toLowerCase().includes(c.model.toLowerCase()));
+                        const dailyRate = matchedCar ? matchedCar.price_per_day : 350000;
+                        const basePrice = (confirmModalItem.duration_days || 1) * dailyRate;
+                        setTotalPrice(basePrice);
+                      }}
+                      className="text-[10px] text-rose-600 hover:underline font-bold cursor-pointer"
+                    >
+                      Hapus Diskon
+                    </button>
+                  )}
                 </div>
-                <div className="flex items-center justify-between text-slate-600">
-                  <span>Durasi Sewa:</span>
-                  <span className="font-bold text-slate-800">{confirmModalItem.duration_days} Hari ({confirmModalItem.start_date} &rarr; {confirmModalItem.end_date})</span>
-                </div>
-                <div className="flex items-center justify-between border-t border-slate-200 pt-2 text-slate-700">
-                  <span className="font-bold">Total Biaya Sewa ({confirmModalItem.duration_days} Hari):</span>
-                  <span className="font-black text-base text-brand-navy">
-                    Rp {Number(totalPrice).toLocaleString('id-ID')}
-                  </span>
+
+                <RupiahInput
+                  value={discountAmount}
+                  onChange={(val) => {
+                    setDiscountAmount(val);
+                    const matchedCar =
+                      carsList.find((c) => c.id === confirmModalItem.car_id) ||
+                      carsList.find((c) => confirmModalItem.car_name && confirmModalItem.car_name.toLowerCase().includes(c.model.toLowerCase()));
+                    const dailyRate = matchedCar ? matchedCar.price_per_day : 350000;
+                    const basePrice = (confirmModalItem.duration_days || 1) * dailyRate;
+                    setTotalPrice(Math.max(0, basePrice - val));
+                  }}
+                  placeholder="0 (Tanpa Diskon)"
+                />
+
+                {/* Quick Preset Buttons */}
+                <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] text-slate-400">Pilihan Cepat:</span>
+                  {[50000, 100000, 200000, 500000].map((amt) => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => {
+                        setDiscountAmount(amt);
+                        const matchedCar =
+                          carsList.find((c) => c.id === confirmModalItem.car_id) ||
+                          carsList.find((c) => confirmModalItem.car_name && confirmModalItem.car_name.toLowerCase().includes(c.model.toLowerCase()));
+                        const dailyRate = matchedCar ? matchedCar.price_per_day : 350000;
+                        const basePrice = (confirmModalItem.duration_days || 1) * dailyRate;
+                        setTotalPrice(Math.max(0, basePrice - amt));
+                      }}
+                      className={`text-[10px] px-2 py-0.5 rounded-lg border font-semibold transition-all cursor-pointer ${
+                        discountAmount === amt
+                          ? 'bg-rose-50 text-rose-700 border-rose-300 font-bold shadow-xs'
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      -Rp {(amt / 1000).toLocaleString('id-ID')}rb
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -1636,6 +1744,12 @@ _Terima kasih telah mempercayakan perjalanan Anda kepada kami!_`;
                     Rp {(selectedInquiry.total_price || 0).toLocaleString('id-ID')}
                   </span>
                 </div>
+                {selectedInquiry.discount_amount > 0 && (
+                  <div className="flex justify-between text-rose-700">
+                    <span>Potongan Diskon Sewa:</span>
+                    <span className="font-bold">- Rp {selectedInquiry.discount_amount.toLocaleString('id-ID')}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-purple-700">
                   <span>DP Terbayar ({selectedInquiry.payment_method_dp || 'Transfer'}):</span>
                   <span className="font-bold">

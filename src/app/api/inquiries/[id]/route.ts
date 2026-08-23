@@ -22,6 +22,7 @@ export async function PATCH(
       'customer_name',
       'customer_phone',
       'status',
+      'discount_amount',
       'dp_amount',
       'deposit_amount',
       'total_price',

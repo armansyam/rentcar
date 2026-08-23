@@ -82,6 +82,7 @@ db.exec(`
 try {
   const existingCols = (db.prepare('PRAGMA table_info(inquiries)').all() as any[]).map((c) => c.name);
   const newCols = [
+    { name: 'discount_amount', type: 'INTEGER DEFAULT 0' },
     { name: 'dp_amount', type: 'INTEGER DEFAULT 0' },
     { name: 'deposit_amount', type: 'INTEGER DEFAULT 0' },
     { name: 'total_price', type: 'INTEGER DEFAULT 0' },
