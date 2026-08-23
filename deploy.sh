@@ -62,7 +62,7 @@ echo -e "${GREEN}✓ Direktori data dan aset terverifikasi.${NC}"
 
 # 4. Install Dependensi
 echo -e "\n${BOLD}[4/6] Menginstall Dependensi Proyek...${NC}"
-npm install --no-audit --prefer-offline || npm install
+npm install --include=dev --no-audit --prefer-offline || npm install --include=dev
 echo -e "${GREEN}✓ Dependensi berhasil dipasang.${NC}"
 
 # 5. Build Aplikasi Next.js
