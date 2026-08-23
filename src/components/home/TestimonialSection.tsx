@@ -66,15 +66,14 @@ export default function TestimonialSection() {
 
               {/* Customer Avatar & Name */}
               <div className="flex items-center gap-3 pt-4 border-t border-slate-200/60">
-                <div className="w-10 h-10 rounded-full overflow-hidden relative border border-slate-200 shrink-0">
-                  <Image
-                    src={item.avatar}
-                    alt={item.name}
-                    fill
-                    loading="lazy"
-                    className="object-cover"
-                  />
-                </div>
+                <Image
+                  src={item.avatar}
+                  alt={item.name}
+                  width={40}
+                  height={40}
+                  loading="lazy"
+                  className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0"
+                />
                 <div>
                   <h4 className="text-xs sm:text-sm font-bold text-slate-900 leading-tight">
                     {item.name}
