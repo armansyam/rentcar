@@ -60,13 +60,7 @@ export default function HomePage({
           badge={settings.hero_badge}
         />
 
-        {/* 2. Profil & Keunggulan Section */}
-        <AboutSection
-          title={settings.about_title}
-          text={settings.about_text}
-        />
-
-        {/* 3. Daftar Mobil & Filter Kategori */}
+        {/* 2. Daftar Mobil & Filter Kategori (Langsung Terlihat Setelah Hero) */}
         <VehicleGrid
           cars={cars}
           title="Mobil Tersedia"
@@ -75,10 +69,10 @@ export default function HomePage({
           showViewAll={true}
         />
 
-        {/* 4. Alur & Cara Sewa */}
+        {/* 3. Alur & Cara Sewa */}
         <HowItWorks />
 
-        {/* 5. Form Ketersediaan & Booking Interaktif */}
+        {/* 4. Form Ketersediaan & Booking Interaktif */}
         <BookingForm
           cars={cars}
           selectedCarId={selectedCarId}
@@ -86,10 +80,22 @@ export default function HomePage({
           companyName={settings.company_name || 'RentCar'}
         />
 
-        {/* 6. Syarat & Ketentuan Sewa */}
+        {/* 5. Syarat & Ketentuan Sewa */}
         <TermsSection />
 
-        {/* 7. Lokasi Kantor & Kontak */}
+        {/* 6. Testimoni Pelanggan */}
+        <TestimonialSection />
+
+        {/* 7. Tanya Jawab (FAQ) */}
+        <FAQSection />
+
+        {/* 8. Profil & Keunggulan Perusahaan (Tentang Kami) */}
+        <AboutSection
+          title={settings.about_title}
+          text={settings.about_text}
+        />
+
+        {/* 9. Lokasi Kantor & Kontak (Tepat di Atas Footer) */}
         <LocationSection
           officeName={settings.office_name}
           officeAddress={settings.office_address}
@@ -98,12 +104,6 @@ export default function HomePage({
           googleMapsUrl={settings.google_maps_url}
           operationalHours={settings.operational_hours}
         />
-
-        {/* 8. Testimoni Pelanggan */}
-        <TestimonialSection />
-
-        {/* 9. Tanya Jawab (FAQ) */}
-        <FAQSection />
       </main>
 
       {/* Footer */}
