@@ -77,6 +77,8 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const showWatermark = process.env.NEXT_PUBLIC_SHOW_WATERMARK !== 'false';
+
   return (
     <html lang="id" className="scroll-smooth">
       <head>
@@ -89,8 +91,8 @@ export default function RootLayout({
       </head>
       <body className="antialiased bg-slate-50 text-slate-900 min-h-screen flex flex-col font-sans selection:bg-brand-navy selection:text-white">
         {children}
-        {/* Developer Watermark Script */}
-        <Script src="/js/watermark.js" strategy="lazyOnload" />
+        {/* Developer Watermark Script (Bisa di-toggle via NEXT_PUBLIC_SHOW_WATERMARK=false di .env) */}
+        {showWatermark && <Script src="/js/watermark.js" strategy="lazyOnload" />}
       </body>
     </html>
   );
