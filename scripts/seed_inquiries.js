@@ -41,12 +41,12 @@ const dummyInquiries = [
     customer_name: 'Siti Rahmawati',
     customer_phone: '085712348899',
     notes: 'Mau sewa lepas kunci untuk liburan keluarga kecil.',
-    status: 'CHECKING',
+    status: 'NEW',
     total_price: 700000,
     dp_amount: 0,
     payment_status: 'UNPAID',
     payment_method_dp: 'Transfer Mandiri',
-    notes_admin: 'Sedang cek ketersediaan Brio di jadwal tersebut.',
+    notes_admin: 'Inquiry baru masuk dari form website.',
   },
   // 3. Tab 2: Booking Terjadwal (CONFIRMED)
   {
