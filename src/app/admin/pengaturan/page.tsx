@@ -1,7 +1,18 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { CheckIcon, MapPinIcon, ExternalLinkIcon, PhoneIcon, MailIcon, ClockIcon } from '@/components/ui/Icons';
+import Image from 'next/image';
+import {
+  CheckIcon,
+  MapPinIcon,
+  ExternalLinkIcon,
+  PhoneIcon,
+  MailIcon,
+  ClockIcon,
+  GlobeIcon,
+  SearchIcon,
+  FileTextIcon,
+} from '@/components/ui/Icons';
 
 function getGoogleMapsEmbedUrl(inputUrl?: string, address?: string, officeName?: string): string {
   if (inputUrl) {
@@ -30,6 +41,10 @@ export default function AdminSettingsPage() {
   // Maps check state
   const [checkingMap, setCheckingMap] = useState(false);
   const [mapCheckMessage, setMapCheckMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // OG Image Upload
+  const [uploadingOg, setUploadingOg] = useState(false);
+  const ogFileInputRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetch('/api/settings')
@@ -99,72 +114,110 @@ export default function AdminSettingsPage() {
       if (data.success && data.embedUrl) {
         setSettings((prev) => ({
           ...prev,
+          google_maps_url: data.resolvedUrl || prev.google_maps_url,
           google_maps_embed: data.embedUrl,
         }));
         setMapCheckMessage({
           type: 'success',
-          text: `Lokasi Berhasil Terdeteksi: ${data.query || 'Peta siap'}`,
+          text: `Lokasi berhasil dimuat: ${data.placeName || 'Peta siap digunakan'}`,
         });
       } else {
         setMapCheckMessage({
           type: 'error',
-          text: data.error || 'Gagal mendeteksi link peta.',
+          text: data.error || 'Gagal memuat peta dari link tersebut.',
         });
       }
     } catch (err: any) {
       setMapCheckMessage({
         type: 'error',
-        text: `Koneksi gagal: ${err.message}`,
+        text: err.message || 'Terjadi kesalahan jaringan saat mengecek peta.',
       });
     } finally {
       setCheckingMap(false);
     }
   };
 
+  const handleOgUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingOg(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.success) {
+        handleChange('og_image', data.url);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setUploadingOg(false);
+    }
+  };
+
+  const liveEmbedUrl =
+    settings.google_maps_embed ||
+    getGoogleMapsEmbedUrl(settings.google_maps_url, settings.office_address, settings.office_name);
+
+  // SEO Helpers
+  const metaTitle = settings.meta_title || 'Rental Mobil Bandung | Sewa Mobil Lepas Kunci - RentCar';
+  const metaDesc =
+    settings.meta_description ||
+    'Sewa mobil lepas kunci di Bandung dengan armada terawat, harga transparan, dan proses pemesanan praktis via WhatsApp.';
+  const canonicalUrl = settings.canonical_url || 'https://rentcar.id';
+  const ogImageUrl = settings.og_image || '/images/cars/hero-luxury-black-suv.jpg';
+  const keywordsList = settings.meta_keywords
+    ? settings.meta_keywords.split(',').map((k) => k.trim()).filter(Boolean)
+    : ['rental mobil bandung', 'sewa mobil lepas kunci', 'rentcar bandung', 'rental alphard', 'sewa innova reborn'];
+
+  const presetOgImages = [
+    { label: 'Hero SUV Hitam', url: '/images/cars/hero-luxury-black-suv.jpg' },
+    { label: 'Toyota Alphard', url: '/images/cars/toyota-alphard.jpg' },
+    { label: 'Toyota Fortuner', url: '/images/cars/toyota-fortuner.jpg' },
+    { label: 'Toyota Innova Reborn', url: '/images/cars/toyota-innova-reborn.jpg' },
+  ];
+
   if (loading) {
-    return <div className="p-8 text-center text-slate-500 font-bold">Memuat pengaturan...</div>;
+    return (
+      <div className="p-8 text-center text-slate-400">
+        Memuat data pengaturan...
+      </div>
+    );
   }
 
-  const liveEmbedUrl = settings.google_maps_embed || getGoogleMapsEmbedUrl(settings.google_maps_url, settings.office_address, settings.office_name);
-
   return (
-    <div className="space-y-6 max-w-4xl pb-16">
+    <div className="space-y-6 max-w-5xl pb-24">
+      {/* Page Title */}
       <div>
         <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
           Pengaturan Bisnis, Kontak & SEO
         </h1>
         <p className="text-xs sm:text-sm text-slate-500 mt-1">
-          Kelola nomor WhatsApp admin, alamat kantor, Google Maps, jam operasional, dan SEO website secara mandiri per bagian.
+          Kelola nomor WhatsApp admin, alamat kantor, Google Maps, jam operasional, dan optimasi SEO website secara mandiri per bagian.
         </p>
       </div>
 
-      {/* Success Notification Banner */}
+      {/* Floating Success Toast */}
       {successToast && (
-        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs sm:text-sm text-emerald-900 font-bold flex items-center justify-between shadow-sm animate-fade-in">
-          <div className="flex items-center gap-2.5">
-            <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
-              <CheckIcon size={14} />
-            </div>
-            <span>{successToast}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setSuccessToast(null)}
-            className="text-xs text-emerald-700 hover:text-emerald-900 underline font-semibold cursor-pointer"
-          >
-            Tutup
-          </button>
+        <div className="fixed top-6 right-6 z-50 bg-emerald-800 text-white text-xs font-bold px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2 animate-fade-in border border-emerald-700">
+          <CheckIcon size={16} className="text-emerald-300" />
+          <span>{successToast}</span>
         </div>
       )}
 
       {/* ========================================================================= */}
-      {/* SECTION 1: Kontak & WhatsApp                                             */}
+      {/* SECTION 1: Kontak & WhatsApp Admin                                       */}
       {/* ========================================================================= */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 card-shadow space-y-4">
+      <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 card-shadow space-y-4">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div>
-            <h2 className="text-base font-bold text-slate-900">
-              Kontak & WhatsApp
+            <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+              <PhoneIcon size={18} className="text-brand-navy" />
+              <span>Kontak & WhatsApp</span>
             </h2>
             <p className="text-[11px] text-slate-400">Nomor penerima pesanan dan kontak layanan pelanggan</p>
           </div>
@@ -181,7 +234,7 @@ export default function AdminSettingsPage() {
               Edit
             </button>
           ) : (
-            <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-md border border-amber-200">
+            <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
               Mode Edit
             </span>
           )}
@@ -189,24 +242,20 @@ export default function AdminSettingsPage() {
 
         {/* View Mode */}
         {editingSection !== 'contact' ? (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs sm:text-sm pt-1">
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 text-xs sm:text-sm">
+            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
               <span className="text-slate-400 text-xs block mb-1">WhatsApp Admin (Penerima Booking)</span>
-              <span className="font-mono font-extrabold text-slate-900">
+              <span className="font-extrabold text-slate-900 font-mono text-sm block">
                 {settings.admin_whatsapp ? `+${settings.admin_whatsapp}` : '-'}
               </span>
             </div>
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
               <span className="text-slate-400 text-xs block mb-1">Telepon Display</span>
-              <span className="font-bold text-slate-900">
-                {settings.company_phone || '-'}
-              </span>
+              <span className="font-bold text-slate-900 block">{settings.company_phone || '-'}</span>
             </div>
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
               <span className="text-slate-400 text-xs block mb-1">Email Perusahaan</span>
-              <span className="font-bold text-slate-900">
-                {settings.company_email || '-'}
-              </span>
+              <span className="font-bold text-slate-900 block">{settings.company_email || '-'}</span>
             </div>
           </div>
         ) : (
@@ -215,24 +264,22 @@ export default function AdminSettingsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
-                  Nomor WhatsApp Admin <span className="text-rose-500">*</span>
+                  Nomor WhatsApp Admin (Format 62xxx) *
                 </label>
                 <input
                   type="text"
-                  value={settings.admin_whatsapp || ''}
-                  onChange={(e) => handleChange('admin_whatsapp', e.target.value)}
-                  placeholder="6281234567890"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 font-mono font-bold focus:bg-white focus:border-brand-navy"
                   required
+                  value={settings.admin_whatsapp || ''}
+                  onChange={(e) => handleChange('admin_whatsapp', e.target.value.replace(/\D/g, ''))}
+                  placeholder="6281234567890"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 font-mono focus:bg-white focus:border-brand-navy"
                 />
-                <span className="text-[11px] text-slate-400 mt-1 block">
-                  Format: 628xxxxxxxxxx (Awalan 62)
-                </span>
+                <p className="text-[11px] text-slate-400 mt-1">Gunakan kode negara tanpa tanda plus (+). Contoh: 6281234567890</p>
               </div>
 
               <div>
                 <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
-                  Nomor Telepon Display Website
+                  Nomor Telepon Tampilan
                 </label>
                 <input
                   type="text"
@@ -246,7 +293,7 @@ export default function AdminSettingsPage() {
 
             <div>
               <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
-                Email Perusahaan / Customer Service
+                Email Perusahaan
               </label>
               <input
                 type="email"
@@ -261,7 +308,7 @@ export default function AdminSettingsPage() {
               <button
                 type="button"
                 onClick={handleCancel}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
               >
                 Batal
               </button>
@@ -269,7 +316,7 @@ export default function AdminSettingsPage() {
                 type="button"
                 disabled={savingSection === 'contact'}
                 onClick={() => handleSaveSection('contact', 'Kontak')}
-                className="px-5 py-2 rounded-xl text-xs font-bold bg-brand-navy hover:bg-brand-navy-light text-white shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-brand-navy hover:bg-brand-navy-light text-white shadow-sm transition-all cursor-pointer disabled:opacity-50"
               >
                 {savingSection === 'contact' ? 'Menyimpan...' : 'Simpan Kontak'}
               </button>
@@ -281,11 +328,12 @@ export default function AdminSettingsPage() {
       {/* ========================================================================= */}
       {/* SECTION 2: Lokasi Kantor & Google Maps                                   */}
       {/* ========================================================================= */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 card-shadow space-y-4">
+      <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 card-shadow space-y-4">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div>
-            <h2 className="text-base font-bold text-slate-900">
-              Lokasi Kantor & Google Maps
+            <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+              <MapPinIcon size={18} className="text-brand-navy" />
+              <span>Lokasi Kantor & Google Maps</span>
             </h2>
             <p className="text-[11px] text-slate-400">Sinkron ke tampilan peta di website utama</p>
           </div>
@@ -302,7 +350,7 @@ export default function AdminSettingsPage() {
               Edit
             </button>
           ) : (
-            <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-md border border-amber-200">
+            <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
               Mode Edit
             </span>
           )}
@@ -312,17 +360,17 @@ export default function AdminSettingsPage() {
         {editingSection !== 'location' ? (
           <div className="space-y-4 pt-1 text-xs sm:text-sm">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
                 <span className="text-slate-400 text-xs block mb-1">Nama Kantor / Outlet</span>
                 <span className="font-bold text-slate-900">{settings.office_name || '-'}</span>
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
                 <span className="text-slate-400 text-xs block mb-1">Jam Operasional</span>
                 <span className="font-bold text-slate-900">{settings.operational_hours || '-'}</span>
               </div>
             </div>
 
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
               <span className="text-slate-400 text-xs block mb-1">Alamat Lengkap</span>
               <span className="font-semibold text-slate-800 leading-relaxed block">
                 {settings.office_address || '-'}
@@ -330,9 +378,9 @@ export default function AdminSettingsPage() {
             </div>
 
             {/* Interactive Live Map Preview in View Mode */}
-            <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
-              <div className="p-2.5 bg-slate-100/90 border-b border-slate-200 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-1 text-slate-700 font-bold">
+            <div className="rounded-2xl overflow-hidden border border-slate-200 bg-slate-100">
+              <div className="p-3 bg-slate-100/90 border-b border-slate-200 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5 text-slate-700 font-bold">
                   <MapPinIcon size={14} className="text-rose-500" />
                   <span>Peta Lokasi Terpasang</span>
                 </div>
@@ -344,7 +392,7 @@ export default function AdminSettingsPage() {
                     className="text-[11px] text-brand-navy font-bold hover:underline flex items-center gap-1"
                   >
                     <span>Buka Google Maps</span>
-                    <ExternalLinkIcon size={11} />
+                    <ExternalLinkIcon size={12} />
                   </a>
                 )}
               </div>
@@ -469,7 +517,7 @@ export default function AdminSettingsPage() {
               <button
                 type="button"
                 onClick={handleCancel}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
               >
                 Batal
               </button>
@@ -477,7 +525,7 @@ export default function AdminSettingsPage() {
                 type="button"
                 disabled={savingSection === 'location'}
                 onClick={() => handleSaveSection('location', 'Lokasi & Peta')}
-                className="px-5 py-2 rounded-xl text-xs font-bold bg-brand-navy hover:bg-brand-navy-light text-white shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-brand-navy hover:bg-brand-navy-light text-white shadow-sm transition-all cursor-pointer disabled:opacity-50"
               >
                 {savingSection === 'location' ? 'Menyimpan...' : 'Simpan Lokasi'}
               </button>
@@ -487,15 +535,18 @@ export default function AdminSettingsPage() {
       </div>
 
       {/* ========================================================================= */}
-      {/* SECTION 3: SEO & Meta Tag Website                                         */}
+      {/* SECTION 3: SEO, Social Share & Webmaster Tracking (LENGKAP)                */}
       {/* ========================================================================= */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 card-shadow space-y-4">
+      <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 card-shadow space-y-6">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div>
-            <h2 className="text-base font-bold text-slate-900">
-              Search Engine Optimization (SEO)
+            <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+              <GlobeIcon size={18} className="text-brand-navy" />
+              <span>Search Engine Optimization (SEO) & Social Share</span>
             </h2>
-            <p className="text-[11px] text-slate-400">Meta tag untuk Google Search dan pratinjau link sosial media</p>
+            <p className="text-[11px] text-slate-400">
+              Meta tag Google Search, target kata kunci, gambar Open Graph (WhatsApp/FB), dan kode pelacakan webmaster.
+            </p>
           </div>
 
           {editingSection !== 'seo' ? (
@@ -510,7 +561,7 @@ export default function AdminSettingsPage() {
               Edit
             </button>
           ) : (
-            <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-md border border-amber-200">
+            <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
               Mode Edit
             </span>
           )}
@@ -518,62 +569,346 @@ export default function AdminSettingsPage() {
 
         {/* View Mode */}
         {editingSection !== 'seo' ? (
-          <div className="space-y-3 pt-1 text-xs sm:text-sm">
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-              <span className="text-slate-400 text-xs block mb-1">Meta Title Homepage</span>
-              <span className="font-bold text-slate-900 block">
-                {settings.meta_title || '-'}
-              </span>
+          <div className="space-y-5 text-xs sm:text-sm">
+            {/* 1. Interactive Google Search Preview Card */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/80 border border-slate-200 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                  <SearchIcon size={12} className="text-blue-500" />
+                  <span>Pratinjau Hasil Pencarian Google (SERP Preview)</span>
+                </span>
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                  {settings.robots_index || 'index, follow'}
+                </span>
+              </div>
+
+              {/* Google Result Box */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-1 font-sans shadow-2xs">
+                <div className="flex items-center gap-2 text-xs text-slate-600">
+                  <div className="w-5 h-5 rounded-full bg-brand-navy text-white text-[10px] font-bold flex items-center justify-center">
+                    RC
+                  </div>
+                  <div className="truncate">
+                    <span className="font-semibold text-slate-800">{settings.company_name || 'RentCar'}</span>
+                    <span className="text-slate-400 font-mono text-[11px] ml-1.5">{canonicalUrl}</span>
+                  </div>
+                </div>
+                <div className="text-blue-700 hover:underline font-medium text-base sm:text-lg leading-snug cursor-pointer pt-0.5">
+                  {metaTitle}
+                </div>
+                <p className="text-slate-600 text-xs sm:text-xs leading-relaxed line-clamp-2 pt-0.5">
+                  {metaDesc}
+                </p>
+              </div>
             </div>
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-              <span className="text-slate-400 text-xs block mb-1">Meta Description Homepage</span>
-              <span className="text-slate-700 leading-relaxed block">
-                {settings.meta_description || '-'}
+
+            {/* 2. Grid Meta Details */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
+                <span className="text-slate-400 text-xs block mb-1">Target Kata Kunci (Keywords)</span>
+                <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                  {keywordsList.map((k) => (
+                    <span key={k} className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700 text-[11px] font-medium">
+                      {k}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
+                <span className="text-slate-400 text-xs block mb-1">Domain / Canonical URL</span>
+                <span className="font-mono font-bold text-slate-900 text-xs block truncate">
+                  {canonicalUrl}
+                </span>
+              </div>
+            </div>
+
+            {/* 3. Open Graph & Social Share Preview */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/80 border border-slate-200 space-y-3">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block">
+                Pratinjau Thumbnail Share WhatsApp & Sosial Media (Open Graph)
               </span>
+              <div className="max-w-md bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
+                <div className="w-full h-44 bg-slate-100 relative overflow-hidden">
+                  <Image
+                    src={ogImageUrl}
+                    alt="Open Graph Preview"
+                    fill
+                    className="object-cover"
+                  />
+                </div>
+                <div className="p-3.5 space-y-1 bg-slate-50/50">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block font-mono">
+                    {canonicalUrl.replace(/^https?:\/\//, '')}
+                  </span>
+                  <div className="font-bold text-slate-900 text-xs line-clamp-1">
+                    {metaTitle}
+                  </div>
+                  <p className="text-slate-500 text-[11px] line-clamp-2 leading-relaxed">
+                    {metaDesc}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* 4. Tracking IDs in View Mode */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
+                <span className="text-slate-400 text-xs block mb-0.5">Google Search Console Verification</span>
+                <span className="font-mono text-xs text-slate-700 truncate block">
+                  {settings.google_site_verification || 'Belum terpasang'}
+                </span>
+              </div>
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
+                <span className="text-slate-400 text-xs block mb-0.5">Google Analytics (GA4) / GTM ID</span>
+                <span className="font-mono font-bold text-slate-900 text-xs block">
+                  {settings.google_analytics_id || 'Belum terpasang'}
+                </span>
+              </div>
             </div>
           </div>
         ) : (
-          /* Edit Mode Form */
-          <div className="space-y-4 pt-2">
-            <div>
-              <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
-                Meta Title Homepage
-              </label>
-              <input
-                type="text"
-                value={settings.meta_title || ''}
-                onChange={(e) => handleChange('meta_title', e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 focus:bg-white focus:border-brand-navy"
-              />
+          /* ========================================================================= */
+          /* Edit Mode Form (LENGKAP)                                                  */
+          /* ========================================================================= */
+          <div className="space-y-6 pt-2 text-xs sm:text-sm">
+            {/* GRUP A: META TAG UTAMA */}
+            <div className="space-y-4">
+              <span className="text-xs font-black uppercase tracking-wider text-brand-navy block border-b border-slate-100 pb-1.5">
+                1. Meta Tag & Deskripsi Mesin Pencari
+              </span>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-bold text-slate-700">Meta Title (Judul Tab & Google Search) *</label>
+                  <span className={`text-[11px] font-bold ${
+                    (settings.meta_title || '').length > 65 ? 'text-amber-600' : 'text-emerald-700'
+                  }`}>
+                    {(settings.meta_title || '').length} / 60 karakter disarankan
+                  </span>
+                </div>
+                <input
+                  type="text"
+                  required
+                  value={settings.meta_title || ''}
+                  onChange={(e) => handleChange('meta_title', e.target.value)}
+                  placeholder="Rental Mobil Bandung | Sewa Mobil Lepas Kunci - RentCar"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 font-semibold focus:bg-white focus:border-brand-navy"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-bold text-slate-700">Meta Description (Ringkasan Deskripsi Google) *</label>
+                  <span className={`text-[11px] font-bold ${
+                    (settings.meta_description || '').length > 165 ? 'text-amber-600' : 'text-emerald-700'
+                  }`}>
+                    {(settings.meta_description || '').length} / 160 karakter disarankan
+                  </span>
+                </div>
+                <textarea
+                  rows={3}
+                  required
+                  value={settings.meta_description || ''}
+                  onChange={(e) => handleChange('meta_description', e.target.value)}
+                  placeholder="Sewa mobil lepas kunci di Bandung dengan armada terawat, harga transparan, dan proses pemesanan praktis via WhatsApp."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 leading-relaxed focus:bg-white focus:border-brand-navy"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Target Kata Kunci (Keywords) — Pisahkan dengan koma
+                </label>
+                <input
+                  type="text"
+                  value={settings.meta_keywords || ''}
+                  onChange={(e) => handleChange('meta_keywords', e.target.value)}
+                  placeholder="rental mobil bandung, sewa mobil lepas kunci, rentcar harian, sewa alphard bandung"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 focus:bg-white focus:border-brand-navy"
+                />
+              </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
-                Meta Description Homepage
-              </label>
-              <textarea
-                rows={2}
-                value={settings.meta_description || ''}
-                onChange={(e) => handleChange('meta_description', e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 focus:bg-white focus:border-brand-navy"
-              />
+            {/* GRUP B: DOMAIN & OPEN GRAPH (SOSIAL MEDIA / WHATSAPP) */}
+            <div className="space-y-4 pt-2">
+              <span className="text-xs font-black uppercase tracking-wider text-brand-navy block border-b border-slate-100 pb-1.5">
+                2. Domain & Pratinjau Link Sosial Media (Open Graph)
+              </span>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Canonical / Domain Utama Website
+                  </label>
+                  <input
+                    type="url"
+                    value={settings.canonical_url || ''}
+                    onChange={(e) => handleChange('canonical_url', e.target.value)}
+                    placeholder="https://rentcar.id"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 font-mono focus:bg-white focus:border-brand-navy"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Nama Situs di Media Sosial (Site Name)
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.og_site_name || ''}
+                    onChange={(e) => handleChange('og_site_name', e.target.value)}
+                    placeholder="RentCar Indonesia"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 focus:bg-white focus:border-brand-navy"
+                  />
+                </div>
+              </div>
+
+              {/* OG Image Upload & Picker */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Gambar Pratinjau Sosial Media / WhatsApp (OG Image — 1200x630 px)
+                </label>
+                <div className="flex items-center gap-3">
+                  <div className="w-24 h-16 rounded-xl border border-slate-200 bg-slate-100 overflow-hidden relative shrink-0">
+                    <Image
+                      src={settings.og_image || '/images/cars/hero-luxury-black-suv.jpg'}
+                      alt="OG Preview"
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
+                  <div className="flex-1 space-y-1.5">
+                    <input
+                      type="file"
+                      ref={ogFileInputRef}
+                      onChange={handleOgUpload}
+                      accept="image/*"
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      disabled={uploadingOg}
+                      onClick={() => ogFileInputRef.current?.click()}
+                      className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                    >
+                      {uploadingOg ? 'Mengunggah...' : '📁 Unggah Gambar Banner dari Komputer'}
+                    </button>
+                    <input
+                      type="text"
+                      value={settings.og_image || ''}
+                      onChange={(e) => handleChange('og_image', e.target.value)}
+                      placeholder="/images/cars/hero-luxury-black-suv.jpg atau link URL gambar"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-700 font-mono focus:bg-white"
+                    />
+                  </div>
+                </div>
+
+                {/* Preset Choices */}
+                <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] text-slate-400">Pilihan Cepat:</span>
+                  {presetOgImages.map((p) => (
+                    <button
+                      key={p.label}
+                      type="button"
+                      onClick={() => handleChange('og_image', p.url)}
+                      className={`text-[10px] px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
+                        (settings.og_image || '') === p.url
+                          ? 'bg-brand-navy text-white border-brand-navy font-bold'
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* GRUP C: GOOGLE SEARCH CONSOLE & ANALYTICS */}
+            <div className="space-y-4 pt-2">
+              <span className="text-xs font-black uppercase tracking-wider text-brand-navy block border-b border-slate-100 pb-1.5">
+                3. Integrasi Webmaster & Google Analytics
+              </span>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Google Search Console Verification Code
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.google_site_verification || ''}
+                    onChange={(e) => handleChange('google_site_verification', e.target.value)}
+                    placeholder="google-site-verification=xxxxxx atau kode verifikasi"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-mono text-slate-800 focus:bg-white focus:border-brand-navy"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Google Analytics 4 (GA4) / GTM ID
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.google_analytics_id || ''}
+                    onChange={(e) => handleChange('google_analytics_id', e.target.value)}
+                    placeholder="G-XXXXXXXXXX"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-mono text-slate-800 focus:bg-white focus:border-brand-navy"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Pengaturan Robot Mesin Pencari (Robots Indexing)
+                </label>
+                <select
+                  value={settings.robots_index || 'index, follow'}
+                  onChange={(e) => handleChange('robots_index', e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-semibold text-slate-800 focus:bg-white focus:border-brand-navy"
+                >
+                  <option value="index, follow">🟢 index, follow — Izinkan Google mengindeks website ke halaman pencarian (Direkomendasikan)</option>
+                  <option value="noindex, nofollow">🔴 noindex, nofollow — Sembunyikan website dari Google (Mode Maintenance / Privat)</option>
+                </select>
+              </div>
+            </div>
+
+            {/* LIVE SERP PREVIEW BOX IN EDIT MODE */}
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block">
+                Pratinjau Langsung Hasil Pencarian Google (Live SERP Preview):
+              </span>
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200 space-y-1">
+                <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                  <span className="w-4 h-4 rounded-full bg-brand-navy text-white text-[9px] font-bold flex items-center justify-center">RC</span>
+                  <span className="font-semibold text-slate-800">{settings.company_name || 'RentCar'}</span>
+                  <span className="text-slate-400 font-mono text-[10px]">{canonicalUrl}</span>
+                </div>
+                <div className="text-blue-700 font-medium text-base leading-snug">
+                  {settings.meta_title || 'Judul Halaman Website'}
+                </div>
+                <p className="text-slate-600 text-xs line-clamp-2 leading-relaxed">
+                  {settings.meta_description || 'Deskripsi ringkasan website akan tampil di sini saat dicari di Google...'}
+                </p>
+              </div>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
               <button
                 type="button"
                 onClick={handleCancel}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
               >
                 Batal
               </button>
               <button
                 type="button"
                 disabled={savingSection === 'seo'}
-                onClick={() => handleSaveSection('seo', 'SEO')}
-                className="px-5 py-2 rounded-xl text-xs font-bold bg-brand-navy hover:bg-brand-navy-light text-white shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                onClick={() => handleSaveSection('seo', 'SEO & Social Share')}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-brand-navy hover:bg-brand-navy-light text-white shadow-sm transition-all cursor-pointer disabled:opacity-50"
               >
-                {savingSection === 'seo' ? 'Menyimpan...' : 'Simpan SEO'}
+                {savingSection === 'seo' ? 'Menyimpan...' : 'Simpan Pengaturan SEO'}
               </button>
             </div>
           </div>
