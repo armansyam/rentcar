@@ -24,6 +24,14 @@ export default function AdminOverviewPage() {
     CANCELLED: 'bg-rose-100 text-rose-600 border-rose-200',
   };
 
+  const statusLabels: Record<string, string> = {
+    NEW: 'Inquiry Baru',
+    CONFIRMED: 'Booking Dikonfirmasi',
+    ACTIVE_RENTAL: 'Mobil Digunakan',
+    COMPLETED: 'Selesai & Arsip',
+    CANCELLED: 'Dibatalkan',
+  };
+
   const activeRentalsList = db.prepare("SELECT * FROM inquiries WHERE status = 'ACTIVE_RENTAL'").all() as any[];
   const todayStr = new Date().toISOString().split('T')[0];
   const overdueRentals = activeRentalsList.filter((r) => r.end_date && r.end_date < todayStr);
@@ -56,95 +64,83 @@ export default function AdminOverviewPage() {
           <div className="flex items-start sm:items-center gap-3.5">
             <span className="text-3xl sm:text-4xl shrink-0">🚨</span>
             <div>
-              <h3 className="font-black text-base sm:text-lg text-rose-900">
-                PERINGATAN OVERTIME: {overdueRentals.length} Mobil Melewati Batas Waktu Pengembalian!
+              <h3 className="font-black text-sm sm:text-base text-rose-900 flex items-center gap-2">
+                <span>PERINGATAN: {overdueRentals.length} Mobil Melewati Batas Pengembalian!</span>
               </h3>
-              <p className="text-xs sm:text-sm text-rose-700 mt-0.5">
-                Terdapat unit yang belum dikembalikan sesuai jadwal sewa. Segera hubungi penyewa atau pantau GPS.
+              <p className="text-xs text-rose-700 mt-0.5">
+                Penyewa belum mengembalikan unit sesuai jadwal. Segera hubungi via WhatsApp atau tindak lanjuti.
               </p>
             </div>
           </div>
           <Link
             href="/admin/inquiry"
-            className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs shrink-0 shadow-md transition-all text-center"
+            className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-xs shadow-sm transition-all text-center shrink-0"
           >
-            Buka Tab Sedang Disewa ({overdueRentals.length})
+            Lihat Unit Overtime ({overdueRentals.length})
           </Link>
         </div>
       )}
 
-      {/* 4 Overview Statistics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        {/* Card 1: Total Armada */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200 card-shadow">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+      {/* Stats KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 card-shadow flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
               Total Armada
             </span>
-            <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
-              <CarIcon size={18} />
-            </div>
+            <div className="text-2xl sm:text-3xl font-extrabold text-slate-900">{totalCars}</div>
+            <span className="text-[11px] font-semibold text-emerald-600 mt-1 block">
+              {activeCars} Unit Siap Disewa
+            </span>
           </div>
-          <p className="text-2xl sm:text-3xl font-black text-slate-900 mt-3">
-            {totalCars}
-          </p>
-          <span className="text-[11px] font-medium text-emerald-600 mt-1 block">
-            {activeCars} Unit Siap Disewa
-          </span>
+          <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+            <CarIcon size={24} />
+          </div>
         </div>
 
-        {/* Card 2: Tahap 1 Inquiry Masuk */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200 card-shadow">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 card-shadow flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
               Inquiry Masuk
             </span>
-            <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
-              <FileTextIcon size={18} />
-            </div>
+            <div className="text-2xl sm:text-3xl font-extrabold text-slate-900">{newInquiries}</div>
+            <span className="text-[11px] font-semibold text-amber-600 mt-1 block">
+              Tanya ketersediaan & negosiasi
+            </span>
           </div>
-          <p className="text-2xl sm:text-3xl font-black text-slate-900 mt-3">
-            {newInquiries}
-          </p>
-          <span className="text-[11px] font-medium text-slate-500 mt-1 block">
-            Tanya ketersediaan & negosiasi
-          </span>
+          <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+            <FileTextIcon size={24} />
+          </div>
         </div>
 
-        {/* Card 3: Tahap 2 Booking Terjadwal */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200 card-shadow">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 card-shadow flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
               Booking Terjadwal
             </span>
-            <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
-              <WhatsAppIcon size={18} />
-            </div>
+            <div className="text-2xl sm:text-3xl font-extrabold text-slate-900">{confirmedBookings}</div>
+            <span className="text-[11px] font-semibold text-purple-600 mt-1 block">
+              Sudah DP & verifikasi KTP
+            </span>
           </div>
-          <p className="text-2xl sm:text-3xl font-black text-slate-900 mt-3">
-            {confirmedBookings}
-          </p>
-          <span className="text-[11px] font-medium text-purple-600 mt-1 block font-semibold">
-            Sudah DP & verifikasi KTP
-          </span>
+          <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+            <WhatsAppIcon size={24} />
+          </div>
         </div>
 
-        {/* Card 4: Tahap 3 Sedang Disewa (Aktif) */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200 card-shadow">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 card-shadow flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
               Sedang Disewa (Aktif)
             </span>
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
-            </div>
+            <div className="text-2xl sm:text-3xl font-extrabold text-slate-900">{activeRentals}</div>
+            <span className="text-[11px] font-semibold text-emerald-600 mt-1 block">
+              Mobil di jalan & pantau jam kembali
+            </span>
           </div>
-          <p className="text-2xl sm:text-3xl font-black text-emerald-700 mt-3">
-            {activeRentals}
-          </p>
-          <span className="text-[11px] font-medium text-emerald-600 mt-1 block font-semibold">
-            Mobil di jalan & pantau jam kembali
-          </span>
+          <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <CarIcon size={24} />
+          </div>
         </div>
       </div>
 
@@ -172,11 +168,10 @@ export default function AdminOverviewPage() {
           <table className="w-full text-left text-xs sm:text-sm">
             <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200/80">
               <tr>
-                <th className="px-5 py-3.5">Invoice</th>
-                <th className="px-5 py-3.5">Customer</th>
+                <th className="px-5 py-3.5">Penyewa</th>
                 <th className="px-5 py-3.5">Armada</th>
                 <th className="px-5 py-3.5">Tanggal Sewa</th>
-                <th className="px-5 py-3.5">Lokasi</th>
+                <th className="px-5 py-3.5">Lokasi / Rute</th>
                 <th className="px-5 py-3.5">Status</th>
                 <th className="px-5 py-3.5 text-right">Aksi</th>
               </tr>
@@ -185,19 +180,24 @@ export default function AdminOverviewPage() {
               {recentInquiries.length > 0 ? (
                 recentInquiries.map((inq) => (
                   <tr key={inq.id} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="px-5 py-4 font-mono font-bold text-brand-navy">
-                      {inq.invoice_no}
-                    </td>
                     <td className="px-5 py-4">
                       <div className="font-bold text-slate-900">{inq.customer_name}</div>
-                      <div className="text-slate-500 text-xs">{inq.customer_phone}</div>
+                      <a
+                        href={`https://wa.me/${inq.customer_phone.replace(/\D/g, '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-slate-500 text-xs hover:text-emerald-700 flex items-center gap-1 font-mono transition-colors"
+                      >
+                        <WhatsAppIcon size={12} className="text-brand-green-wa" />
+                        <span>{inq.customer_phone}</span>
+                      </a>
                     </td>
-                    <td className="px-5 py-4 font-medium text-slate-800">
+                    <td className="px-5 py-4 font-semibold text-slate-800">
                       {inq.car_name}
                     </td>
                     <td className="px-5 py-4 text-slate-600">
                       <div>{inq.start_date} – {inq.end_date}</div>
-                      <div className="text-[11px] text-slate-400">({inq.duration_days} hari)</div>
+                      <div className="text-[11px] text-slate-400 font-medium">({inq.duration_days} hari)</div>
                     </td>
                     <td className="px-5 py-4 text-slate-600 text-xs max-w-[180px] truncate">
                       {inq.pickup_location}
@@ -208,7 +208,7 @@ export default function AdminOverviewPage() {
                           statusColors[inq.status] || 'bg-slate-100 text-slate-600 border-slate-200'
                         }`}
                       >
-                        {inq.status}
+                        {statusLabels[inq.status] || inq.status}
                       </span>
                     </td>
                     <td className="px-5 py-4 text-right">
@@ -228,7 +228,7 @@ export default function AdminOverviewPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={7} className="px-5 py-8 text-center text-slate-400">
+                  <td colSpan={6} className="px-5 py-8 text-center text-slate-400">
                     Belum ada inquiry yang masuk.
                   </td>
                 </tr>
