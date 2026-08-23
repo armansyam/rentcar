@@ -811,11 +811,11 @@ _Terima kasih telah mempercayakan perjalanan Anda kepada kami!_`;
 
                       {/* Date Schedule */}
                       <td className="px-5 py-4 text-xs">
-                        <div className="font-bold text-slate-800">
-                          {item.start_date} &rarr; {item.end_date}
+                        <div className="font-extrabold text-slate-900 text-sm">
+                          {item.start_date}
                         </div>
                         <div className="text-slate-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
-                          <span>Durasi: <strong className="text-slate-700">{item.duration_days} Hari</strong></span>
+                          <span>Durasi: <strong className="text-slate-800">{item.duration_days} Hari</strong></span>
                           {timeStatus && item.status === 'ACTIVE_RENTAL' && (
                             <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-extrabold ${
                               isOverdue
@@ -1823,6 +1823,15 @@ _Terima kasih telah mempercayakan perjalanan Anda kepada kami!_`;
                 <div>
                   <span className="text-slate-400 text-xs block mb-0.5">Tujuan Perjalanan</span>
                   <span className="font-bold text-slate-900">{selectedInquiry.destination || 'Dalam Kota'}</span>
+                </div>
+                <div className="col-span-2 pt-2 border-t border-slate-200/80">
+                  <span className="text-slate-400 text-xs block mb-0.5">Jadwal Sewa Lengkap (Mulai & Selesai)</span>
+                  <div className="flex items-center gap-2 font-bold text-slate-900">
+                    <span className="text-brand-navy font-extrabold">{selectedInquiry.start_date}</span>
+                    <span className="text-slate-400">&rarr;</span>
+                    <span className="text-emerald-700 font-extrabold">{selectedInquiry.end_date}</span>
+                    <span className="text-xs text-slate-500 font-normal">({selectedInquiry.duration_days} Hari)</span>
+                  </div>
                 </div>
               </div>
 
