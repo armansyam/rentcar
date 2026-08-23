@@ -57,7 +57,7 @@ export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [originalSettings, setOriginalSettings] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
-  const [isClientMounted, setIsClientMounted] = useState(false);
+  const [showInteractiveMap, setShowInteractiveMap] = useState(false);
   const [editingSection, setEditingSection] = useState<SectionType>(null);
   const [savingSection, setSavingSection] = useState<SectionType>(null);
   const [successToast, setSuccessToast] = useState<string | null>(null);
@@ -104,7 +104,6 @@ export default function AdminSettingsPage() {
   };
 
   useEffect(() => {
-    setIsClientMounted(true);
     let isMounted = true;
 
     fetch('/api/settings')
@@ -1052,35 +1051,50 @@ export default function AdminSettingsPage() {
               </span>
             </div>
 
-            {/* Interactive Live Map Preview (Mounted on Client) */}
-            <div className="rounded-2xl overflow-hidden border border-slate-200 bg-slate-100">
-              <div className="p-3 bg-slate-100/90 border-b border-slate-200 flex items-center justify-between text-xs">
+            {/* Interactive Live Map Preview Card */}
+            <div className="rounded-2xl overflow-hidden border border-slate-200 bg-slate-50">
+              <div className="p-3.5 bg-slate-100/90 border-b border-slate-200 flex items-center justify-between text-xs">
                 <div className="flex items-center gap-1.5 text-slate-700 font-bold">
                   <MapPinIcon size={14} className="text-rose-500" />
                   <span>Peta Lokasi Terpasang</span>
                 </div>
-                {settings.google_maps_url && (
-                  <a
-                    href={settings.google_maps_url.startsWith('http') ? settings.google_maps_url : `https://maps.google.com/?q=${encodeURIComponent(settings.office_address || '')}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[11px] text-brand-navy font-bold hover:underline flex items-center gap-1"
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowInteractiveMap(!showInteractiveMap)}
+                    className="text-[11px] font-bold text-brand-navy bg-white hover:bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200 transition-colors cursor-pointer"
                   >
-                    <span>Buka Google Maps</span>
-                    <ExternalLinkIcon size={12} />
-                  </a>
-                )}
+                    {showInteractiveMap ? 'Sembunyikan Peta' : '🗺️ Tampilkan Peta'}
+                  </button>
+                  {settings.google_maps_url && (
+                    <a
+                      href={settings.google_maps_url.startsWith('http') ? settings.google_maps_url : `https://maps.google.com/?q=${encodeURIComponent(settings.office_address || '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-slate-600 hover:text-brand-navy font-bold flex items-center gap-1"
+                    >
+                      <span>Buka Maps</span>
+                      <ExternalLinkIcon size={11} />
+                    </a>
+                  )}
+                </div>
               </div>
-              <div className="h-56 bg-slate-100">
-                {isClientMounted && (
+
+              {showInteractiveMap ? (
+                <div className="h-56 bg-slate-100">
                   <iframe
                     src={liveEmbedUrl}
                     title="Google Maps"
                     className="w-full h-full border-0"
                     loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
                   />
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="p-4 text-center text-xs text-slate-500">
+                  <span>Peta embed siap. Klik tombol <strong>&ldquo;🗺️ Tampilkan Peta&rdquo;</strong> di atas untuk memuat iframe.</span>
+                </div>
+              )}
             </div>
           </div>
         ) : (
@@ -1181,14 +1195,13 @@ export default function AdminSettingsPage() {
                 Pratinjau Peta Interaktif:
               </span>
               <div className="h-48 rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
-                {isClientMounted && (
-                  <iframe
-                    src={liveEmbedUrl}
-                    title="Google Maps Preview"
-                    className="w-full h-full border-0"
-                    loading="lazy"
-                  />
-                )}
+                <iframe
+                  src={liveEmbedUrl}
+                  title="Google Maps Preview"
+                  className="w-full h-full border-0"
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
               </div>
             </div>
 
