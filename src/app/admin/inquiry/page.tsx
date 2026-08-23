@@ -257,6 +257,43 @@ export default function AdminInquiriesPage() {
     setActiveTab('history');
   };
 
+  // Helper to add days to formatted Indonesian date string or ISO date string
+  function addDaysToDate(dateStr: string, daysToAdd: number): string {
+    const monthNames = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    let baseDate = new Date();
+
+    if (dateStr && dateStr.includes(' ')) {
+      const parts = dateStr.split(' ');
+      const day = parseInt(parts[0], 10);
+      const mIdx = monthNames.findIndex((m) => parts[1]?.toLowerCase().startsWith(m.toLowerCase().slice(0, 3)));
+      const year = parseInt(parts[2], 10) || new Date().getFullYear();
+      if (!isNaN(day) && mIdx !== -1) {
+        baseDate = new Date(year, mIdx, day);
+      }
+    } else if (dateStr) {
+      const parsed = new Date(dateStr);
+      if (!isNaN(parsed.getTime())) {
+        baseDate = parsed;
+      }
+    }
+
+    // If baseDate is before today (overdue), start extending from TODAY
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const effectiveBase = baseDate.getTime() < today.getTime() ? today : baseDate;
+
+    const targetDate = new Date(effectiveBase);
+    targetDate.setDate(targetDate.getDate() + daysToAdd);
+
+    const d = targetDate.getDate();
+    const m = monthNames[targetDate.getMonth()];
+    const y = targetDate.getFullYear();
+    return `${d} ${m} ${y}`;
+  }
+
   // 4. Action: Extend Rental
   const openExtendModal = (item: any) => {
     setExtendModalItem(item);
@@ -269,14 +306,22 @@ export default function AdminInquiriesPage() {
     const currentDuration = Number(extendModalItem.duration_days) || 1;
     const newDuration = currentDuration + addedDays;
 
-    // Calculate price per day
-    const pricePerDay = Math.round((extendModalItem.total_price || 350000) / currentDuration) || 350000;
-    const newTotalPrice = (extendModalItem.total_price || 0) + addedDays * pricePerDay;
+    // Get real daily rate from master car data
+    const matchedCar =
+      carsList.find((c) => c.id === extendModalItem.car_id) ||
+      carsList.find((c) => extendModalItem.car_name && extendModalItem.car_name.toLowerCase().includes(c.model.toLowerCase()));
+    const dailyRate = matchedCar ? matchedCar.price_per_day : (Math.round((extendModalItem.total_price || 350000) / currentDuration) || 350000);
+    const addedCost = addedDays * dailyRate;
+    const newTotalPrice = (Number(extendModalItem.total_price) || 0) + addedCost;
+    const newEndDate = addDaysToDate(extendModalItem.end_date, addedDays);
 
     await handleUpdate(extendModalItem.id, {
       duration_days: newDuration,
+      end_date: newEndDate,
       total_price: newTotalPrice,
-      notes_admin: `${extendModalItem.notes_admin || ''} [Perpanjang sewa +${addedDays} hari pada ${new Date().toLocaleDateString('id-ID')}]`.trim(),
+      overtime_hours: 0,
+      overtime_fee: 0,
+      notes_admin: `${extendModalItem.notes_admin ? extendModalItem.notes_admin + ' | ' : ''}Perpanjang sewa +${addedDays} hari s/d ${newEndDate} pada ${new Date().toLocaleDateString('id-ID')}`.trim(),
     });
     setExtendModalItem(null);
   };
@@ -668,7 +713,7 @@ _Terima kasih telah mempercayakan perjalanan Anda kepada kami!_`;
                             </span>
                           )}
                         </div>
-                        {item.status !== 'COMPLETED' && item.status !== 'CANCELLED' && (
+                        {item.status !== 'ACTIVE_RENTAL' && item.status !== 'COMPLETED' && item.status !== 'CANCELLED' && (
                           <button
                             type="button"
                             onClick={() => openRescheduleModal(item)}
@@ -1320,22 +1365,49 @@ _Terima kasih telah mempercayakan perjalanan Anda kepada kami!_`;
                 </div>
               </div>
 
-              <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 space-y-1.5 text-xs text-amber-900">
-                <div className="flex justify-between">
-                  <span>Durasi Saat Ini:</span>
-                  <span className="font-bold">{extendModalItem.duration_days} Hari</span>
-                </div>
-                <div className="flex justify-between font-bold text-amber-950">
-                  <span>Durasi Baru:</span>
-                  <span>{Number(extendModalItem.duration_days) + Number(extendDays)} Hari</span>
-                </div>
-                <div className="flex justify-between border-t border-amber-200 pt-1 font-bold">
-                  <span>Tambahan Biaya:</span>
-                  <span>
-                    + Rp {(extendDays * Math.round((extendModalItem.total_price || 350000) / extendModalItem.duration_days)).toLocaleString('id-ID')}
-                  </span>
-                </div>
-              </div>
+              {(() => {
+                const matchedCar =
+                  carsList.find((c) => c.id === extendModalItem.car_id) ||
+                  carsList.find((c) => extendModalItem.car_name && extendModalItem.car_name.toLowerCase().includes(c.model.toLowerCase()));
+                const dailyRate = matchedCar
+                  ? matchedCar.price_per_day
+                  : Math.round((extendModalItem.total_price || 350000) / (extendModalItem.duration_days || 1)) || 350000;
+                const addedCost = (extendDays || 1) * dailyRate;
+                const newTotalPrice = (Number(extendModalItem.total_price) || 0) + addedCost;
+                const newEndDate = addDaysToDate(extendModalItem.end_date, extendDays || 1);
+
+                return (
+                  <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 space-y-2 text-xs text-amber-950">
+                    <div className="flex justify-between">
+                      <span className="text-amber-800">Durasi Saat Ini:</span>
+                      <span className="font-bold">{extendModalItem.duration_days} Hari</span>
+                    </div>
+                    <div className="flex justify-between font-extrabold text-amber-950">
+                      <span>Durasi Baru:</span>
+                      <span>{Number(extendModalItem.duration_days) + Number(extendDays)} Hari (+{extendDays} Hari)</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-blue-900 bg-blue-50/80 p-2 rounded-xl border border-blue-200">
+                      <span>🗓️ Tanggal Selesai Baru:</span>
+                      <span className="font-extrabold">{newEndDate}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-600">
+                      <span>Tarif Harian Unit ({matchedCar ? `${matchedCar.brand} ${matchedCar.model}` : 'Armada'}):</span>
+                      <span className="font-bold">Rp {dailyRate.toLocaleString('id-ID')} / hari</span>
+                    </div>
+                    <div className="flex justify-between border-t border-amber-200 pt-1.5 font-bold text-amber-900">
+                      <span>Tambahan Biaya Sewa (+{extendDays} Hari):</span>
+                      <span className="font-extrabold text-emerald-800">+ Rp {addedCost.toLocaleString('id-ID')}</span>
+                    </div>
+                    <div className="flex justify-between border-t border-amber-300 pt-1.5 font-black text-sm text-slate-900">
+                      <span>Total Biaya Sewa Baru:</span>
+                      <span>Rp {newTotalPrice.toLocaleString('id-ID')}</span>
+                    </div>
+                    <p className="text-[11px] text-emerald-800 font-bold mt-1">
+                      ✅ Tanggal batas sewa akan dimajukan ke {newEndDate} dan otomatis menonaktifkan status Denda/Overdue.
+                    </p>
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
