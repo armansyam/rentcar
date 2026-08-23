@@ -73,19 +73,52 @@ echo -e "${GREEN}✓ Build produksi berhasil dibuat tanpa error.${NC}"
 # 6. Restart Server (PM2 jika tersedia, atau fallback info)
 echo -e "\n${BOLD}[6/6] Menjalankan / Memperbarui Service Aplikasi...${NC}"
 APP_NAME="${APP_NAME:-rentcar}"
-PORT="${PORT:-${1:-3000}}"
+TARGET_PORT="${PORT:-${1:-3000}}"
+
+# Fungsi untuk memeriksa apakah port sedang digunakan
+is_port_in_use() {
+    local p=$1
+    if command -v lsof &> /dev/null; then
+        lsof -iTCP:"$p" -sTCP:LISTEN -P -n &> /dev/null
+    elif command -v nc &> /dev/null; then
+        nc -z 127.0.0.1 "$p" &> /dev/null
+    else
+        return 1
+    fi
+}
+
+PORT=$TARGET_PORT
+
+# Jika port sedang dipakai oleh service lain di luar PM2, cari port yang tersedia
+if is_port_in_use "$PORT"; then
+    # Cek apakah itu proses PM2 milik kita sendiri
+    IS_OUR_PM2=false
+    if command -v pm2 &> /dev/null && pm2 list | grep -q "$APP_NAME"; then
+        IS_OUR_PM2=true
+    fi
+
+    if [ "$IS_OUR_PM2" = false ]; then
+        echo -e "${YELLOW}⚠️ Port $PORT sedang digunakan oleh proses lain.${NC}"
+        echo -e "Mencari port kosong berikutnya secara otomatis..."
+        while is_port_in_use "$PORT"; do
+            PORT=$((PORT + 1))
+        done
+        echo -e "${GREEN}✓ Mengalihkan otomatis ke port yang tersedia: ${BOLD}$PORT${NC}"
+    fi
+fi
 
 if command -v pm2 &> /dev/null; then
     echo -e "Menggunakan PM2 Process Manager..."
     if pm2 list | grep -q "$APP_NAME"; then
         echo -e "Merestart service PM2: ${YELLOW}$APP_NAME${NC} pada port ${YELLOW}$PORT${NC}..."
-        pm2 restart "$APP_NAME" --update-env
+        pm2 delete "$APP_NAME" &> /dev/null || true
+        pm2 start npm --name "$APP_NAME" -- start -- -p "$PORT"
     else
         echo -e "Memulai service baru di PM2: ${YELLOW}$APP_NAME${NC} pada port ${YELLOW}${PORT}${NC}..."
         pm2 start npm --name "$APP_NAME" -- start -- -p "$PORT"
     fi
     pm2 save
-    echo -e "${GREEN}✓ Service PM2 berhasil diperbarui pada port ${PORT}!${NC}"
+    echo -e "${GREEN}✓ Service PM2 berhasil aktif pada port ${PORT}!${NC}"
 else
     echo -e "${YELLOW}ℹ️ PM2 tidak terdeteksi secara global.${NC}"
     echo -e "Untuk menjalankan aplikasi pada port ${BOLD}${PORT}${NC}:"
