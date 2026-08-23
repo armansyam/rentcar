@@ -1,7 +1,14 @@
 import type { Metadata, Viewport } from 'next';
+import { Plus_Jakarta_Sans } from 'next/font/google';
 import Script from 'next/script';
 import db from '@/lib/db';
 import '@/styles/globals.css';
+
+const plusJakartaSans = Plus_Jakarta_Sans({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700', '800'],
+  display: 'swap',
+});
 
 export const dynamic = 'force-dynamic';
 
@@ -80,20 +87,13 @@ export default function RootLayout({
   const showWatermark = process.env.NEXT_PUBLIC_SHOW_WATERMARK !== 'false';
 
   return (
-    <html lang="id" className="scroll-smooth">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap"
-          rel="stylesheet"
-        />
-      </head>
+    <html lang="id" className={`scroll-smooth ${plusJakartaSans.className}`}>
       <body className="antialiased bg-slate-50 text-slate-900 min-h-screen flex flex-col font-sans selection:bg-brand-navy selection:text-white">
         {children}
-        {/* Developer Watermark Script (Bisa di-toggle via NEXT_PUBLIC_SHOW_WATERMARK=false di .env) */}
+        {/* Developer Watermark Script */}
         {showWatermark && <Script src="/js/watermark.js" strategy="lazyOnload" />}
       </body>
     </html>
   );
 }
+

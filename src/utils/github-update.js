@@ -8,16 +8,20 @@ let cachedStatus = {
   error: null,
 };
 
+let cachedCommitHash = null;
+
 function getCurrentCommitHash() {
+  if (cachedCommitHash) return Promise.resolve(cachedCommitHash);
   return new Promise((resolve) => {
     const envCommit = process.env.VERCEL_GIT_COMMIT_SHA || process.env.GIT_COMMIT_SHA || process.env.COMMIT_HASH;
-    if (envCommit) return resolve(envCommit.substring(0, 7));
+    if (envCommit) {
+      cachedCommitHash = envCommit.substring(0, 7);
+      return resolve(cachedCommitHash);
+    }
 
-    exec('git rev-parse --short HEAD', { timeout: 3000 }, (err, stdout) => {
-      if (err || !stdout) {
-        return resolve('1a86007');
-      }
-      resolve(stdout.trim());
+    exec('git rev-parse --short HEAD', { timeout: 2000 }, (err, stdout) => {
+      cachedCommitHash = stdout ? stdout.trim() : 'ea9c78b';
+      resolve(cachedCommitHash);
     });
   });
 }
