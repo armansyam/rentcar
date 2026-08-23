@@ -39,22 +39,23 @@ export default function AdminOverviewPage() {
   return (
     <div className="space-y-8">
       {/* Top Welcome Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+          <h1 className="text-xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
             Dashboard Utama
           </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Ringkasan performa inquiry, booking terjadwal, dan pemantauan mobil yang sedang disewa.
+          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+            Ringkasan performa armada, booking, dan sewa aktif.
           </p>
         </div>
 
         <Link
           href="/admin/mobil"
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand-navy hover:bg-brand-navy-light text-white text-xs font-bold transition-all shadow-sm active:scale-98"
+          className="inline-flex items-center justify-center gap-1.5 sm:gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-brand-navy hover:bg-brand-navy-light text-white text-xs font-bold transition-all shadow-sm active:scale-98 shrink-0"
         >
-          <PlusIcon size={16} />
-          <span>Tambah Mobil Baru</span>
+          <PlusIcon size={15} />
+          <span className="hidden sm:inline">Tambah Mobil Baru</span>
+          <span className="sm:hidden">Tambah Mobil</span>
         </Link>
       </div>
 
@@ -81,65 +82,77 @@ export default function AdminOverviewPage() {
         </div>
       )}
 
-      {/* Stats KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 card-shadow flex items-center justify-between">
-          <div>
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+      {/* Stats KPI Cards - Sleek 2x2 Grid on Mobile, 4 Cols on Desktop */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {/* 1. Total Armada */}
+        <div className="bg-white rounded-2xl border border-slate-200/80 p-3.5 sm:p-5 card-shadow transition-all hover:border-slate-300 flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider truncate">
               Total Armada
             </span>
-            <div className="text-2xl sm:text-3xl font-extrabold text-slate-900">{totalCars}</div>
-            <span className="text-[11px] font-semibold text-emerald-600 mt-1 block">
-              {activeCars} Unit Siap Disewa
-            </span>
+            <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+              <CarIcon size={16} />
+            </div>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-            <CarIcon size={24} />
+          <div className="mt-2 sm:mt-3">
+            <div className="text-xl sm:text-3xl font-black text-slate-900 tracking-tight">{totalCars}</div>
+            <span className="text-[10px] sm:text-xs font-semibold text-emerald-600 mt-0.5 block truncate">
+              {activeCars} Siap Sewa
+            </span>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 card-shadow flex items-center justify-between">
-          <div>
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-              Inquiry Masuk
+        {/* 2. Inquiry Masuk */}
+        <div className="bg-white rounded-2xl border border-slate-200/80 p-3.5 sm:p-5 card-shadow transition-all hover:border-slate-300 flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider truncate">
+              Inquiry Baru
             </span>
-            <div className="text-2xl sm:text-3xl font-extrabold text-slate-900">{newInquiries}</div>
-            <span className="text-[11px] font-semibold text-amber-600 mt-1 block">
-              Tanya ketersediaan & negosiasi
-            </span>
+            <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+              <FileTextIcon size={16} />
+            </div>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-            <FileTextIcon size={24} />
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 card-shadow flex items-center justify-between">
-          <div>
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-              Booking Terjadwal
+          <div className="mt-2 sm:mt-3">
+            <div className="text-xl sm:text-3xl font-black text-slate-900 tracking-tight">{newInquiries}</div>
+            <span className="text-[10px] sm:text-xs font-semibold text-amber-600 mt-0.5 block truncate">
+              Tanya Sewa
             </span>
-            <div className="text-2xl sm:text-3xl font-extrabold text-slate-900">{confirmedBookings}</div>
-            <span className="text-[11px] font-semibold text-purple-600 mt-1 block">
-              Sudah DP & verifikasi KTP
-            </span>
-          </div>
-          <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
-            <WhatsAppIcon size={24} />
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 card-shadow flex items-center justify-between">
-          <div>
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-              Sedang Disewa (Aktif)
+        {/* 3. Booking Terjadwal */}
+        <div className="bg-white rounded-2xl border border-slate-200/80 p-3.5 sm:p-5 card-shadow transition-all hover:border-slate-300 flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider truncate">
+              Booking
             </span>
-            <div className="text-2xl sm:text-3xl font-extrabold text-slate-900">{activeRentals}</div>
-            <span className="text-[11px] font-semibold text-emerald-600 mt-1 block">
-              Mobil di jalan & pantau jam kembali
+            <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+              <WhatsAppIcon size={16} />
+            </div>
+          </div>
+          <div className="mt-2 sm:mt-3">
+            <div className="text-xl sm:text-3xl font-black text-slate-900 tracking-tight">{confirmedBookings}</div>
+            <span className="text-[10px] sm:text-xs font-semibold text-purple-600 mt-0.5 block truncate">
+              Dikonfirmasi / DP
             </span>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-            <CarIcon size={24} />
+        </div>
+
+        {/* 4. Sedang Disewa */}
+        <div className="bg-white rounded-2xl border border-slate-200/80 p-3.5 sm:p-5 card-shadow transition-all hover:border-slate-300 flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider truncate">
+              Sedang Disewa
+            </span>
+            <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+              <CarIcon size={16} />
+            </div>
+          </div>
+          <div className="mt-2 sm:mt-3">
+            <div className="text-xl sm:text-3xl font-black text-slate-900 tracking-tight">{activeRentals}</div>
+            <span className="text-[10px] sm:text-xs font-semibold text-emerald-600 mt-0.5 block truncate">
+              Mobil di Jalan
+            </span>
           </div>
         </div>
       </div>
