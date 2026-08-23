@@ -14,6 +14,11 @@ import {
   CreditCardIcon,
   InstagramIcon,
   FileTextIcon,
+  LockIcon,
+  KeyIcon,
+  ShieldCheckIcon,
+  EyeIcon,
+  EyeOffIcon,
 } from '@/components/ui/Icons';
 
 function getGoogleMapsEmbedUrl(inputUrl?: string, address?: string, officeName?: string): string {
@@ -30,7 +35,7 @@ function getGoogleMapsEmbedUrl(inputUrl?: string, address?: string, officeName?:
   return `https://maps.google.com/maps?q=${query}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
 }
 
-type SectionType = 'profile' | 'payment' | 'contact' | 'location' | 'social' | 'seo' | null;
+type SectionType = 'profile' | 'payment' | 'contact' | 'location' | 'social' | 'seo' | 'security' | null;
 
 export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<Record<string, string>>({});
@@ -47,8 +52,20 @@ export default function AdminSettingsPage() {
   // Upload state
   const [uploadingField, setUploadingField] = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const faviconInputRef = useRef<HTMLInputElement>(null);
   const qrisInputRef = useRef<HTMLInputElement>(null);
   const ogFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Security & Password state
+  const [adminUsername, setAdminUsername] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPass, setShowCurrentPass] = useState(false);
+  const [showNewPass, setShowNewPass] = useState(false);
+  const [showConfirmPass, setShowConfirmPass] = useState(false);
+  const [securityError, setSecurityError] = useState<string | null>(null);
+  const [savingSecurity, setSavingSecurity] = useState(false);
 
   useEffect(() => {
     fetch('/api/settings')
@@ -57,6 +74,7 @@ export default function AdminSettingsPage() {
         if (data.success) {
           setSettings(data.data);
           setOriginalSettings(data.data);
+          setAdminUsername(data.data.admin_username || 'admin');
         }
       })
       .finally(() => setLoading(false));
@@ -70,6 +88,10 @@ export default function AdminSettingsPage() {
     setSettings({ ...originalSettings });
     setEditingSection(null);
     setMapCheckMessage(null);
+    setSecurityError(null);
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
   };
 
   const handleSaveSection = async (section: SectionType, sectionName: string) => {
@@ -93,6 +115,58 @@ export default function AdminSettingsPage() {
       console.error(err);
     } finally {
       setSavingSection(null);
+    }
+  };
+
+  const handleSaveSecurity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSecurityError(null);
+
+    if (!currentPassword) {
+      setSecurityError('Password saat ini wajib diisi untuk verifikasi keamanan.');
+      return;
+    }
+
+    if (newPassword && newPassword.length < 6) {
+      setSecurityError('Password baru minimal 6 karakter.');
+      return;
+    }
+
+    if (newPassword && newPassword !== confirmPassword) {
+      setSecurityError('Konfirmasi password baru tidak cocok.');
+      return;
+    }
+
+    setSavingSecurity(true);
+    try {
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentPassword,
+          newPassword: newPassword || undefined,
+          newUsername: adminUsername || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSuccessToast(data.message || 'Kredensial keamanan akun admin berhasil diperbarui!');
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+        setEditingSection(null);
+        if (data.username) {
+          setSettings((prev) => ({ ...prev, admin_username: data.username }));
+          setAdminUsername(data.username);
+        }
+        setTimeout(() => setSuccessToast(null), 4000);
+      } else {
+        setSecurityError(data.error || 'Gagal memperbarui keamanan.');
+      }
+    } catch (err: any) {
+      setSecurityError('Terjadi kesalahan jaringan saat memperbarui password.');
+    } finally {
+      setSavingSecurity(false);
     }
   };
 
@@ -199,10 +273,10 @@ export default function AdminSettingsPage() {
       {/* Page Title */}
       <div>
         <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-          Pengaturan Bisnis, Kontak & SEO
+          Pengaturan Bisnis, Kontak & Keamanan
         </h1>
         <p className="text-xs sm:text-sm text-slate-500 mt-1">
-          Kelola profil bisnis, rekening bank resmi & QRIS, kontak WhatsApp admin, alamat kantor, media sosial, dan optimasi SEO website.
+          Kelola profil bisnis, rekening bank resmi & QRIS, kontak WhatsApp admin, alamat kantor, media sosial, SEO website, dan keamanan login admin.
         </p>
       </div>
 
@@ -224,7 +298,7 @@ export default function AdminSettingsPage() {
               <BuildingIcon size={18} className="text-brand-navy" />
               <span>Profil & Branding Perusahaan</span>
             </h2>
-            <p className="text-[11px] text-slate-400">Identitas nama rental, slogan/tagline, logo resmi, dan legalitas usaha</p>
+            <p className="text-[11px] text-slate-400">Identitas nama rental, slogan/tagline, logo resmi, dan favicon tab browser</p>
           </div>
 
           {editingSection !== 'profile' ? (
@@ -383,7 +457,7 @@ export default function AdminSettingsPage() {
                   <div className="flex-1 space-y-1.5">
                     <input
                       type="file"
-                      ref={qrisInputRef}
+                      ref={faviconInputRef}
                       onChange={(e) => handleFileUpload(e, 'favicon_url')}
                       accept="image/*"
                       className="hidden"
@@ -391,7 +465,7 @@ export default function AdminSettingsPage() {
                     <button
                       type="button"
                       disabled={uploadingField === 'favicon_url'}
-                      onClick={() => qrisInputRef.current?.click()}
+                      onClick={() => faviconInputRef.current?.click()}
                       className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer block"
                     >
                       {uploadingField === 'favicon_url' ? 'Mengunggah...' : '📁 Unggah Favicon'}
@@ -1249,9 +1323,7 @@ export default function AdminSettingsPage() {
             </div>
           </div>
         ) : (
-          /* ========================================================================= */
-          /* Edit Mode Form (LENGKAP)                                                  */
-          /* ========================================================================= */
+          /* Edit Mode Form */
           <div className="space-y-6 pt-2 text-xs sm:text-sm">
             {/* GRUP A: META TAG UTAMA */}
             <div className="space-y-4">
@@ -1495,6 +1567,193 @@ export default function AdminSettingsPage() {
               </button>
             </div>
           </div>
+        )}
+      </div>
+
+      {/* ========================================================================= */}
+      {/* SECTION 7: Keamanan Akun & Ganti Password Admin                           */}
+      {/* ========================================================================= */}
+      <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 card-shadow space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div>
+            <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+              <ShieldCheckIcon size={18} className="text-brand-navy" />
+              <span>Keamanan Akun & Ganti Password Admin</span>
+            </h2>
+            <p className="text-[11px] text-slate-400">Kelola kredensial login dashboard, ganti username dan password admin</p>
+          </div>
+
+          {editingSection !== 'security' ? (
+            <button
+              type="button"
+              onClick={() => {
+                setEditingSection('security');
+                setSecurityError(null);
+                setCurrentPassword('');
+                setNewPassword('');
+                setConfirmPassword('');
+              }}
+              className="text-xs font-bold text-brand-navy hover:text-brand-navy-light underline cursor-pointer px-2 py-1"
+            >
+              Ganti Password / Username
+            </button>
+          ) : (
+            <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
+              Mode Edit Keamanan
+            </span>
+          )}
+        </div>
+
+        {/* View Mode */}
+        {editingSection !== 'security' ? (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 text-xs sm:text-sm">
+            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
+              <span className="text-slate-400 text-xs block mb-1">Username Admin Aktif</span>
+              <span className="font-extrabold text-slate-900 font-mono text-sm block">
+                {settings.admin_username || 'admin'}
+              </span>
+            </div>
+
+            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
+              <span className="text-slate-400 text-xs block mb-1">Enkripsi Password</span>
+              <span className="font-bold text-emerald-700 flex items-center gap-1.5 text-xs mt-0.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>SHA-256 Kriptografi Salt</span>
+              </span>
+            </div>
+
+            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
+              <span className="text-slate-400 text-xs block mb-1">Proteksi Sesi</span>
+              <span className="font-bold text-slate-800 text-xs mt-0.5 block">
+                HttpOnly Signed Cookie (7 Hari)
+              </span>
+            </div>
+          </div>
+        ) : (
+          /* Edit Mode Form */
+          <form onSubmit={handleSaveSecurity} className="space-y-4 pt-2">
+            {securityError && (
+              <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold flex items-center gap-2">
+                <span>⚠️</span>
+                <span>{securityError}</span>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
+                  Username Admin Baru / Tetap
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={adminUsername}
+                  onChange={(e) => setAdminUsername(e.target.value)}
+                  placeholder="admin"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 font-bold focus:bg-white focus:border-brand-navy"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
+                  Password Saat Ini (Wajib Verifikasi) *
+                </label>
+                <div className="relative">
+                  <input
+                    type={showCurrentPass ? 'text' : 'password'}
+                    required
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    placeholder="Masukkan password lama"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 pr-10 text-sm text-slate-900 font-mono focus:bg-white focus:border-brand-navy"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPass(!showCurrentPass)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
+                  >
+                    {showCurrentPass ? <EyeOffIcon size={16} /> : <EyeIcon size={16} />}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+              <div>
+                <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
+                  Password Baru (Min. 6 Karakter)
+                </label>
+                <div className="relative">
+                  <input
+                    type={showNewPass ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Kosongkan jika hanya ingin ganti username"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 pr-10 text-sm text-slate-900 font-mono focus:bg-white focus:border-brand-navy"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPass(!showNewPass)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
+                  >
+                    {showNewPass ? <EyeOffIcon size={16} /> : <EyeIcon size={16} />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
+                  Konfirmasi Password Baru
+                </label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPass ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Ulangi ketik password baru"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 pr-10 text-sm text-slate-900 font-mono focus:bg-white focus:border-brand-navy"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPass(!showConfirmPass)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
+                  >
+                    {showConfirmPass ? <EyeOffIcon size={16} /> : <EyeIcon size={16} />}
+                  </button>
+                </div>
+                {newPassword && confirmPassword && newPassword !== confirmPassword && (
+                  <p className="text-[11px] text-rose-600 font-bold mt-1">Konfirmasi password belum cocok.</p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={handleCancel}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={savingSecurity}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-700 hover:bg-emerald-600 text-white shadow-sm transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {savingSecurity ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    <span>Menyimpan...</span>
+                  </>
+                ) : (
+                  <>
+                    <KeyIcon size={14} />
+                    <span>Simpan Perubahan Keamanan</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
         )}
       </div>
     </div>
