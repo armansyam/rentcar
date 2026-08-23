@@ -7,16 +7,20 @@ interface LocationSectionProps {
   companyPhone?: string;
   companyEmail?: string;
   googleMapsUrl?: string;
+  googleMapsEmbed?: string;
   operationalHours?: string;
 }
 
-function getGoogleMapsEmbedUrl(inputUrl?: string, address?: string, officeName?: string): string {
+function getGoogleMapsEmbedUrl(embedUrl?: string, inputUrl?: string, address?: string, officeName?: string): string {
+  if (embedUrl) {
+    return embedUrl;
+  }
   if (inputUrl) {
-    const iframeMatch = inputUrl.match(/src=["']([^"']+)["']/);
+    const iframeMatch = inputUrl.match(/src=["']([^"']+)["']/i);
     if (iframeMatch && iframeMatch[1]) {
       return iframeMatch[1];
     }
-    if (inputUrl.includes('google.com/maps/embed')) {
+    if (inputUrl.includes('google.com/maps/embed') || inputUrl.includes('output=embed')) {
       return inputUrl;
     }
   }
@@ -26,7 +30,7 @@ function getGoogleMapsEmbedUrl(inputUrl?: string, address?: string, officeName?:
 
 function getDirectMapsUrl(inputUrl?: string, address?: string, officeName?: string): string {
   if (inputUrl) {
-    const iframeMatch = inputUrl.match(/src=["']([^"']+)["']/);
+    const iframeMatch = inputUrl.match(/src=["']([^"']+)["']/i);
     if (iframeMatch) {
       return `https://maps.google.com/?q=${encodeURIComponent(address || officeName || 'Bandung')}`;
     }
@@ -43,9 +47,10 @@ export default function LocationSection({
   companyPhone = '0812-3456-7890',
   companyEmail = 'info@rentcar.id',
   googleMapsUrl = 'https://maps.google.com/?q=Bandung',
+  googleMapsEmbed,
   operationalHours = 'Senin - Minggu: 07.00 - 22.00 WIB',
 }: LocationSectionProps) {
-  const embedUrl = getGoogleMapsEmbedUrl(googleMapsUrl, officeAddress, officeName);
+  const embedUrl = getGoogleMapsEmbedUrl(googleMapsEmbed, googleMapsUrl, officeAddress, officeName);
   const directMapsUrl = getDirectMapsUrl(googleMapsUrl, officeAddress, officeName);
 
   return (

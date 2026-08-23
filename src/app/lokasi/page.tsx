@@ -42,6 +42,7 @@ export default function LokasiPage() {
           companyPhone={settings.company_phone}
           companyEmail={settings.company_email}
           googleMapsUrl={settings.google_maps_url}
+          googleMapsEmbed={settings.google_maps_embed}
           operationalHours={settings.operational_hours}
         />
       </main>
