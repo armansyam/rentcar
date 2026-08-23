@@ -61,7 +61,25 @@ export default function BookingForm({
     return () => window.removeEventListener('rentcar:select-car', handleCarSelected);
   }, [selectedCarId, cars, carId]);
 
-  // Set default dates: tomorrow and 2 days after
+  const addDays = (dateStr: string, days: number): string => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    d.setDate(d.getDate() + Number(days));
+    return d.toISOString().split('T')[0];
+  };
+
+  const calcDays = (startStr: string, endStr: string): number => {
+    if (!startStr || !endStr) return 1;
+    const s = new Date(startStr);
+    const e = new Date(endStr);
+    if (isNaN(s.getTime()) || isNaN(e.getTime())) return 1;
+    const diffTime = e.getTime() - s.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+    return Math.max(1, diffDays);
+  };
+
+  // Set default dates: tomorrow and 2 days after (2 days duration)
   useEffect(() => {
     const today = new Date();
     const tomorrow = new Date(today);
@@ -74,18 +92,31 @@ export default function BookingForm({
 
     if (!startDate) setStartDate(formatDate(tomorrow));
     if (!endDate) setEndDate(formatDate(end));
+    setDuration(2);
   }, []);
 
-  // Calculate duration automatically
-  useEffect(() => {
-    if (startDate && endDate) {
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      const diffTime = end.getTime() - start.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      setDuration(diffDays > 0 ? diffDays : 1);
+  const handleStartDateChange = (newStart: string) => {
+    setStartDate(newStart);
+    if (newStart && duration > 0) {
+      setEndDate(addDays(newStart, duration));
     }
-  }, [startDate, endDate]);
+  };
+
+  const handleEndDateChange = (newEnd: string) => {
+    setEndDate(newEnd);
+    if (startDate && newEnd) {
+      const diff = calcDays(startDate, newEnd);
+      setDuration(diff);
+    }
+  };
+
+  const handleDurationChange = (newDur: number) => {
+    const valid = Math.max(1, Math.min(90, newDur));
+    setDuration(valid);
+    if (startDate) {
+      setEndDate(addDays(startDate, valid));
+    }
+  };
 
   const selectedCar = cars.find((c) => c.id === carId) || cars[0];
 
@@ -277,8 +308,8 @@ export default function BookingForm({
                   <input
                     type="date"
                     value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-navy focus:bg-white transition-all"
+                    onChange={(e) => handleStartDateChange(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-navy focus:bg-white transition-all cursor-pointer"
                     required
                   />
                 </div>
@@ -293,24 +324,77 @@ export default function BookingForm({
                     type="date"
                     value={endDate}
                     min={startDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-navy focus:bg-white transition-all"
+                    onChange={(e) => handleEndDateChange(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-navy focus:bg-white transition-all cursor-pointer"
                     required
                   />
                 </div>
               </div>
             </div>
 
-            {/* 3. Durasi Sewa */}
+            {/* 3. Durasi Sewa (Bisa Diubah & Sinkron 2 Arah) */}
             <div>
-              <label className="block text-xs sm:text-sm font-bold text-slate-800 mb-2">
-                Durasi Sewa
-              </label>
-              <div className="w-full bg-slate-100/70 border border-slate-200 rounded-xl px-4 py-3.5 text-sm font-semibold text-slate-700 flex items-center justify-between">
-                <span>{duration} Hari</span>
-                <span className="text-xs text-slate-500 font-normal">
-                  (Dihitung otomatis dari tanggal sewa)
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs sm:text-sm font-bold text-slate-800">
+                  Durasi Sewa <span className="text-rose-500">*</span>
+                </label>
+                <span className="text-xs text-slate-500 font-normal hidden sm:inline">
+                  (Mengubah hari otomatis memajukan tanggal selesai)
                 </span>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                {/* Stepper + Direct Input */}
+                <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-brand-navy focus-within:border-brand-navy shrink-0 shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => handleDurationChange(duration - 1)}
+                    disabled={duration <= 1}
+                    aria-label="Kurangi 1 hari"
+                    className="w-12 h-12 flex items-center justify-center text-slate-600 hover:bg-slate-200 hover:text-slate-900 font-extrabold text-lg disabled:opacity-40 disabled:hover:bg-transparent transition-colors cursor-pointer"
+                  >
+                    −
+                  </button>
+
+                  <div className="flex items-center justify-center px-1">
+                    <input
+                      type="number"
+                      min={1}
+                      max={90}
+                      value={duration}
+                      onChange={(e) => handleDurationChange(parseInt(e.target.value, 10) || 1)}
+                      className="w-14 text-center bg-transparent border-0 font-extrabold text-slate-900 text-base focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                    <span className="text-xs font-bold text-slate-500 -ml-1 pr-2">Hari</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDurationChange(duration + 1)}
+                    aria-label="Tambah 1 hari"
+                    className="w-12 h-12 flex items-center justify-center text-slate-600 hover:bg-slate-200 hover:text-slate-900 font-extrabold text-lg transition-colors cursor-pointer"
+                  >
+                    +
+                  </button>
+                </div>
+
+                {/* Quick Preset Buttons */}
+                <div className="flex items-center gap-1.5 flex-wrap flex-1">
+                  {[1, 2, 3, 5, 7].map((days) => (
+                    <button
+                      key={days}
+                      type="button"
+                      onClick={() => handleDurationChange(days)}
+                      className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        duration === days
+                          ? 'bg-brand-navy text-white shadow-xs'
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                      }`}
+                    >
+                      {days === 7 ? '1 Minggu' : `${days} Hari`}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
