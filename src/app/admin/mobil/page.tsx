@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
+import RupiahInput from '@/components/ui/RupiahInput';
 import {
   CarIcon,
   PlusIcon,
@@ -436,12 +437,11 @@ export default function AdminCarsPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Tarif / Hari (Rp)</label>
-                  <input
-                    type="number"
+                  <label className="block font-bold text-slate-700 mb-1">Tarif / Hari</label>
+                  <RupiahInput
                     value={pricePerDay}
-                    onChange={(e) => setPricePerDay(Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800"
+                    onChange={setPricePerDay}
+                    placeholder="0"
                   />
                 </div>
               </div>

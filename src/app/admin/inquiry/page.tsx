@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import RupiahInput from '@/components/ui/RupiahInput';
 import {
   FileTextIcon,
   WhatsAppIcon,
@@ -767,12 +768,11 @@ ${item.overtime_fee > 0 ? `• Denda Overtime (${item.overtime_hours} Jam) : Rp 
             <div className="space-y-3 text-xs sm:text-sm">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Total Biaya Sewa (Rp)</label>
-                  <input
-                    type="number"
+                  <label className="block font-bold text-slate-700 mb-1">Total Biaya Sewa</label>
+                  <RupiahInput
                     value={totalPrice}
-                    onChange={(e) => setTotalPrice(Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-bold"
+                    onChange={setTotalPrice}
+                    placeholder="0"
                   />
                 </div>
                 <div>
@@ -790,12 +790,11 @@ ${item.overtime_fee > 0 ? `• Denda Overtime (${item.overtime_hours} Jam) : Rp 
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Nominal DP Diterima (Rp)</label>
-                  <input
-                    type="number"
+                  <label className="block font-bold text-slate-700 mb-1">Nominal DP Diterima</label>
+                  <RupiahInput
                     value={dpAmount}
-                    onChange={(e) => setDpAmount(Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-bold"
+                    onChange={setDpAmount}
+                    placeholder="0"
                   />
                 </div>
                 <div>
@@ -891,12 +890,11 @@ ${item.overtime_fee > 0 ? `• Denda Overtime (${item.overtime_hours} Jam) : Rp 
             <div className="space-y-3 text-xs sm:text-sm">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Pelunasan Sisa Sewa (Rp)</label>
-                  <input
-                    type="number"
+                  <label className="block font-bold text-slate-700 mb-1">Pelunasan Sisa Sewa</label>
+                  <RupiahInput
                     value={finalPaymentAmount}
-                    onChange={(e) => setFinalPaymentAmount(Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-bold"
+                    onChange={setFinalPaymentAmount}
+                    placeholder="0"
                   />
                 </div>
                 <div>
@@ -1008,29 +1006,26 @@ ${item.overtime_fee > 0 ? `• Denda Overtime (${item.overtime_hours} Jam) : Rp 
               <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1 text-[11px]">Tarif Overtime/Jam</label>
-                  <input
-                    type="number"
+                  <RupiahInput
                     value={overtimeRatePerHour}
-                    onChange={(e) => setOvertimeRatePerHour(Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 text-xs"
+                    onChange={setOvertimeRatePerHour}
+                    size="sm"
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1 text-[11px]">Charge Bensin (Rp)</label>
-                  <input
-                    type="number"
+                  <label className="block font-bold text-slate-700 mb-1 text-[11px]">Charge Bensin</label>
+                  <RupiahInput
                     value={fuelCharge}
-                    onChange={(e) => setFuelCharge(Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 text-xs"
+                    onChange={setFuelCharge}
+                    size="sm"
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1 text-[11px]">Charge Klaim/Baret (Rp)</label>
-                  <input
-                    type="number"
+                  <label className="block font-bold text-slate-700 mb-1 text-[11px]">Charge Klaim/Baret</label>
+                  <RupiahInput
                     value={damageCharge}
-                    onChange={(e) => setDamageCharge(Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 text-xs"
+                    onChange={setDamageCharge}
+                    size="sm"
                   />
                 </div>
               </div>
