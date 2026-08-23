@@ -48,6 +48,7 @@ export default function HomePage({
       <Navbar
         companyName={settings.company_name || 'RENTCAR'}
         tagline={settings.company_tagline || 'Sewa Mobil Terpercaya'}
+        companyLogo={settings.company_logo}
       />
 
       {/* Main Content Sections */}
@@ -107,10 +108,14 @@ export default function HomePage({
       <Footer
         companyName={settings.company_name}
         tagline={settings.company_tagline}
+        companyLogo={settings.company_logo}
         phone={settings.company_phone}
         email={settings.company_email}
         address={settings.office_address}
         whatsapp={settings.admin_whatsapp}
+        instagram={settings.social_instagram}
+        tiktok={settings.social_tiktok}
+        facebook={settings.social_facebook}
       />
 
       {/* Mobile Sticky Bottom Navigation */}

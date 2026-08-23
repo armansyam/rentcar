@@ -26,6 +26,8 @@ export async function generateMetadata(): Promise<Metadata> {
 
     const baseUrl = canonical.startsWith('http') ? canonical : `https://${canonical}`;
 
+    const faviconUrl = s.favicon_url || s.company_logo || '/favicon.png';
+
     return {
       metadataBase: new URL(baseUrl),
       title,
@@ -33,9 +35,9 @@ export async function generateMetadata(): Promise<Metadata> {
       keywords,
       authors: [{ name: s.company_name || 'RentCar' }],
       icons: {
-        icon: '/favicon.png',
-        shortcut: '/favicon.png',
-        apple: '/apple-touch-icon.png',
+        icon: faviconUrl,
+        shortcut: faviconUrl,
+        apple: faviconUrl,
       },
       openGraph: {
         title,

@@ -19,6 +19,7 @@ export default function LokasiPage() {
       <Navbar
         companyName={settings.company_name}
         tagline={settings.company_tagline}
+        companyLogo={settings.company_logo}
       />
 
       <main className="flex-grow pb-16 md:pb-0">
@@ -50,10 +51,14 @@ export default function LokasiPage() {
       <Footer
         companyName={settings.company_name}
         tagline={settings.company_tagline}
+        companyLogo={settings.company_logo}
         phone={settings.company_phone}
         email={settings.company_email}
         address={settings.office_address}
         whatsapp={settings.admin_whatsapp}
+        instagram={settings.social_instagram}
+        tiktok={settings.social_tiktok}
+        facebook={settings.social_facebook}
       />
 
       <BottomNav />

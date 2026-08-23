@@ -160,6 +160,20 @@ if (settingsCount.count === 0) {
   insertMany(defaultSettings);
 }
 
+// Ensure company_logo and favicon_url exist
+try {
+  const checkLogo = db.prepare("SELECT value FROM settings WHERE key = 'company_logo'").get();
+  if (!checkLogo) {
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('company_logo', '/images/logo.png')").run();
+  }
+  const checkFavicon = db.prepare("SELECT value FROM settings WHERE key = 'favicon_url'").get();
+  if (!checkFavicon) {
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('favicon_url', '/favicon.png')").run();
+  }
+} catch (e) {
+  // ignore
+}
+
 // Seed initial sample cars if table is empty
 const carsCount = db.prepare('SELECT COUNT(*) as count FROM cars').get() as { count: number };
 if (carsCount.count === 0) {

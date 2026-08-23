@@ -5,20 +5,30 @@ import { CarIcon, PhoneIcon, MailIcon, MapPinIcon, WhatsAppIcon } from '@/compon
 interface FooterProps {
   companyName?: string;
   tagline?: string;
+  companyLogo?: string;
   phone?: string;
   email?: string;
   address?: string;
   whatsapp?: string;
+  instagram?: string;
+  tiktok?: string;
+  facebook?: string;
 }
 
 export default function Footer({
   companyName = 'RentCar',
   tagline = 'Sewa Mobil Terpercaya',
+  companyLogo,
   phone = '0812-3456-7890',
   email = 'info@rentcar.id',
   address = 'Jl. Merdeka No.123, Sukajadi, Kec. Sukajadi, Kota Bandung, Jawa Barat 40161',
   whatsapp = '6281234567890',
+  instagram,
+  tiktok,
+  facebook,
 }: FooterProps) {
+  const [imgError, setImgError] = React.useState(false);
+
   return (
     <footer className="bg-brand-navy text-white pt-16 pb-24 md:pb-12 border-t border-slate-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -26,23 +36,36 @@ export default function Footer({
           {/* Col 1: Brand */}
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-white">
-                <CarIcon size={22} />
-              </div>
-              <div>
-                <span className="font-extrabold text-xl tracking-tight text-white block">
-                  {companyName.toUpperCase()}
-                </span>
-                <span className="text-xs text-slate-400 block font-normal">
-                  {tagline}
-                </span>
-              </div>
+              {companyLogo && !imgError ? (
+                <div className="relative h-12 max-w-[200px] flex items-center bg-white/5 p-1 rounded-xl">
+                  <img
+                    src={companyLogo}
+                    alt={companyName}
+                    className="max-h-10 max-w-[180px] object-contain object-left"
+                    onError={() => setImgError(true)}
+                  />
+                </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-white">
+                    <CarIcon size={22} />
+                  </div>
+                  <div>
+                    <span className="font-extrabold text-xl tracking-tight text-white block">
+                      {companyName.toUpperCase()}
+                    </span>
+                    <span className="text-xs text-slate-400 block font-normal">
+                      {tagline}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
             <p className="text-sm text-slate-300 leading-relaxed max-w-sm">
               Melayani kebutuhan transportasi Anda dengan armada terbaik, kondisi prima terawat, dan pelayanan lepas kunci yang profesional.
             </p>
             {/* Social Icons */}
-            <div className="flex items-center gap-3 pt-2">
+            <div className="flex items-center gap-2.5 pt-2 flex-wrap">
               <a
                 href={`https://wa.me/${whatsapp.replace(/\D/g, '')}`}
                 target="_blank"
@@ -52,20 +75,24 @@ export default function Footer({
               >
                 <WhatsAppIcon size={18} />
               </a>
-              <a
-                href="tel:081234567890"
-                className="w-9 h-9 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300 transition-colors"
-                aria-label="Telepon"
-              >
-                <PhoneIcon size={18} />
-              </a>
-              <a
-                href="mailto:info@rentcar.id"
-                className="w-9 h-9 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300 transition-colors"
-                aria-label="Email"
-              >
-                <MailIcon size={18} />
-              </a>
+              {phone && (
+                <a
+                  href={`tel:${phone.replace(/\D/g, '')}`}
+                  className="w-9 h-9 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300 transition-colors"
+                  aria-label="Telepon"
+                >
+                  <PhoneIcon size={18} />
+                </a>
+              )}
+              {email && (
+                <a
+                  href={`mailto:${email}`}
+                  className="w-9 h-9 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300 transition-colors"
+                  aria-label="Email"
+                >
+                  <MailIcon size={18} />
+                </a>
+              )}
             </div>
           </div>
 

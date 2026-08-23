@@ -9,14 +9,17 @@ import { CarIcon, MenuIcon, XIcon } from '@/components/ui/Icons';
 interface NavbarProps {
   companyName?: string;
   tagline?: string;
+  companyLogo?: string;
 }
 
 export default function Navbar({
   companyName = 'RENTCAR',
   tagline = 'Sewa Mobil Terpercaya',
+  companyLogo = '/images/logo.png',
 }: NavbarProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [imgError, setImgError] = useState(false);
   const pathname = usePathname();
 
   useEffect(() => {
@@ -45,15 +48,30 @@ export default function Navbar({
         <div className="flex items-center justify-between h-20">
           {/* Brand Logo */}
           <Link href="/" className="flex items-center gap-3 group">
-            <div className="relative h-12 w-44 sm:w-52">
-              <Image
-                src="/images/logo.png"
-                alt="RentCar - Sewa Mobil Terpercaya"
-                fill
-                priority
-                className="object-contain object-left"
-              />
-            </div>
+            {companyLogo && !imgError ? (
+              <div className="relative h-12 w-44 sm:w-52 flex items-center">
+                <img
+                  src={companyLogo}
+                  alt={`${companyName} - ${tagline}`}
+                  className="max-h-12 max-w-[210px] object-contain object-left transition-transform group-hover:scale-102"
+                  onError={() => setImgError(true)}
+                />
+              </div>
+            ) : (
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-brand-navy flex items-center justify-center text-white shadow-xs group-hover:scale-105 transition-transform">
+                  <CarIcon size={20} />
+                </div>
+                <div>
+                  <span className="font-black text-lg tracking-tight text-brand-navy block leading-none">
+                    {companyName}
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-medium block mt-0.5">
+                    {tagline}
+                  </span>
+                </div>
+              </div>
+            )}
           </Link>
 
           {/* Desktop Navigation Links */}

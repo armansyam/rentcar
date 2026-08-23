@@ -19,8 +19,22 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [companyLogo, setCompanyLogo] = useState<string>('/images/logo-icon.png');
+  const [companyName, setCompanyName] = useState<string>('RentCar');
   const pathname = usePathname();
   const router = useRouter();
+
+  React.useEffect(() => {
+    fetch('/api/settings')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.data) {
+          if (data.data.company_logo) setCompanyLogo(data.data.company_logo);
+          if (data.data.company_name) setCompanyName(data.data.company_name);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // If on login page, render children directly without sidebar
   if (pathname === '/admin/login') {
@@ -45,10 +59,17 @@ export default function AdminLayout({
       {/* Mobile Topbar */}
       <div className="md:hidden bg-brand-navy text-white px-4 py-3 flex items-center justify-between shadow-sm sticky top-0 z-50">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-white/10 relative overflow-hidden shrink-0">
-            <Image src="/images/logo-icon.png" alt="Logo" fill className="object-contain" />
+          <div className="w-8 h-8 rounded-lg bg-white/10 relative overflow-hidden shrink-0 flex items-center justify-center p-0.5">
+            <img
+              src={companyLogo}
+              alt="Logo"
+              className="w-full h-full object-contain"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).src = '/images/logo-icon.png';
+              }}
+            />
           </div>
-          <span className="font-bold text-sm tracking-tight">Admin RentCar</span>
+          <span className="font-bold text-sm tracking-tight truncate max-w-[200px]">Admin {companyName}</span>
         </div>
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -67,15 +88,22 @@ export default function AdminLayout({
         <div className="space-y-6">
           {/* Brand Header */}
           <div className="flex items-center gap-3 px-2 py-2">
-            <div className="w-10 h-10 rounded-xl bg-white/10 relative overflow-hidden shrink-0">
-              <Image src="/images/logo-icon.png" alt="RentCar" fill className="object-contain p-1" />
+            <div className="w-10 h-10 rounded-xl bg-white/10 relative overflow-hidden shrink-0 flex items-center justify-center p-1">
+              <img
+                src={companyLogo}
+                alt={companyName}
+                className="w-full h-full object-contain"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = '/images/logo-icon.png';
+                }}
+              />
             </div>
             <div>
-              <span className="font-extrabold text-base tracking-tight text-white block">
-                ADMIN PANEL
+              <span className="font-extrabold text-base tracking-tight text-white block truncate max-w-[150px]">
+                {companyName.toUpperCase()}
               </span>
               <span className="text-[11px] text-slate-400 font-normal">
-                Rental Mobil Lepas Kunci
+                Panel Admin Lepas Kunci
               </span>
             </div>
           </div>

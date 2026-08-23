@@ -315,49 +315,95 @@ export default function AdminSettingsPage() {
               </div>
             </div>
 
-            {/* Logo Upload */}
-            <div>
-              <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
-                Logo Resmi Perusahaan
-              </label>
-              <div className="flex items-center gap-3">
-                <div className="w-14 h-14 rounded-xl border border-slate-200 bg-slate-100 overflow-hidden relative shrink-0 flex items-center justify-center p-1">
-                  {settings.company_logo ? (
+            {/* Logo & Favicon Upload */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Logo Upload */}
+              <div>
+                <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
+                  Logo Resmi (Navbar & Header)
+                </label>
+                <div className="flex items-center gap-3">
+                  <div className="w-14 h-14 rounded-xl border border-slate-200 bg-slate-100 overflow-hidden relative shrink-0 flex items-center justify-center p-1">
+                    {settings.company_logo ? (
+                      <img
+                        src={settings.company_logo}
+                        alt="Logo Preview"
+                        className="w-full h-full object-contain"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = '/images/logo.png';
+                        }}
+                      />
+                    ) : (
+                      <span className="text-xs font-bold text-slate-400">No Logo</span>
+                    )}
+                  </div>
+                  <div className="flex-1 space-y-1.5">
+                    <input
+                      type="file"
+                      ref={logoInputRef}
+                      onChange={(e) => handleFileUpload(e, 'company_logo')}
+                      accept="image/*"
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      disabled={uploadingField === 'company_logo'}
+                      onClick={() => logoInputRef.current?.click()}
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer block"
+                    >
+                      {uploadingField === 'company_logo' ? 'Mengunggah...' : '📁 Unggah Logo'}
+                    </button>
+                    <input
+                      type="text"
+                      value={settings.company_logo || ''}
+                      onChange={(e) => handleChange('company_logo', e.target.value)}
+                      placeholder="/images/logo.png"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1 text-xs text-slate-700 font-mono focus:bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Favicon Upload */}
+              <div>
+                <label className="block text-xs font-bold uppercase text-slate-600 mb-1">
+                  Favicon Browser (Tab Browser)
+                </label>
+                <div className="flex items-center gap-3">
+                  <div className="w-14 h-14 rounded-xl border border-slate-200 bg-slate-100 overflow-hidden relative shrink-0 flex items-center justify-center p-2">
                     <img
-                      src={settings.company_logo}
-                      alt="Logo Preview"
-                      className="w-full h-full object-contain"
+                      src={settings.favicon_url || settings.company_logo || '/favicon.png'}
+                      alt="Favicon Preview"
+                      className="w-8 h-8 object-contain"
                       onError={(e) => {
                         (e.currentTarget as HTMLImageElement).src = '/favicon.png';
                       }}
                     />
-                  ) : (
-                    <span className="text-xs font-bold text-slate-400">No Logo</span>
-                  )}
-                </div>
-                <div className="flex-1 space-y-1.5">
-                  <input
-                    type="file"
-                    ref={logoInputRef}
-                    onChange={(e) => handleFileUpload(e, 'company_logo')}
-                    accept="image/*"
-                    className="hidden"
-                  />
-                  <button
-                    type="button"
-                    disabled={uploadingField === 'company_logo'}
-                    onClick={() => logoInputRef.current?.click()}
-                    className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
-                  >
-                    {uploadingField === 'company_logo' ? 'Mengunggah...' : '📁 Unggah Logo dari Komputer'}
-                  </button>
-                  <input
-                    type="text"
-                    value={settings.company_logo || ''}
-                    onChange={(e) => handleChange('company_logo', e.target.value)}
-                    placeholder="/favicon.png atau URL logo"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-700 font-mono focus:bg-white"
-                  />
+                  </div>
+                  <div className="flex-1 space-y-1.5">
+                    <input
+                      type="file"
+                      ref={qrisInputRef}
+                      onChange={(e) => handleFileUpload(e, 'favicon_url')}
+                      accept="image/*"
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      disabled={uploadingField === 'favicon_url'}
+                      onClick={() => qrisInputRef.current?.click()}
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer block"
+                    >
+                      {uploadingField === 'favicon_url' ? 'Mengunggah...' : '📁 Unggah Favicon'}
+                    </button>
+                    <input
+                      type="text"
+                      value={settings.favicon_url || ''}
+                      onChange={(e) => handleChange('favicon_url', e.target.value)}
+                      placeholder="/favicon.png"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1 text-xs text-slate-700 font-mono focus:bg-white"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
