@@ -629,12 +629,14 @@ export default function AdminSettingsPage() {
                 Pratinjau Thumbnail Share WhatsApp & Sosial Media (Open Graph)
               </span>
               <div className="max-w-md bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
-                <div className="w-full h-44 bg-slate-100 relative overflow-hidden">
-                  <Image
+                <div className="w-full h-44 bg-slate-100 relative overflow-hidden flex items-center justify-center">
+                  <img
                     src={ogImageUrl}
                     alt="Open Graph Preview"
-                    fill
-                    className="object-cover"
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = '/images/cars/hero-luxury-black-suv.jpg';
+                    }}
                   />
                 </div>
                 <div className="p-3.5 space-y-1 bg-slate-50/50">
@@ -770,12 +772,14 @@ export default function AdminSettingsPage() {
                   Gambar Pratinjau Sosial Media / WhatsApp (OG Image — 1200x630 px)
                 </label>
                 <div className="flex items-center gap-3">
-                  <div className="w-24 h-16 rounded-xl border border-slate-200 bg-slate-100 overflow-hidden relative shrink-0">
-                    <Image
+                  <div className="w-24 h-16 rounded-xl border border-slate-200 bg-slate-100 overflow-hidden relative shrink-0 flex items-center justify-center">
+                    <img
                       src={settings.og_image || '/images/cars/hero-luxury-black-suv.jpg'}
                       alt="OG Preview"
-                      fill
-                      className="object-cover"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = '/images/cars/hero-luxury-black-suv.jpg';
+                      }}
                     />
                   </div>
                   <div className="flex-1 space-y-1.5">
