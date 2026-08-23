@@ -5,8 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { CarIcon, LockIcon, EyeIcon, EyeOffIcon } from '@/components/ui/Icons';
 
 function LoginFormContent() {
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('admin123');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -119,13 +119,6 @@ function LoginFormContent() {
             )}
           </button>
         </form>
-
-        <div className="mt-6 pt-5 border-t border-slate-800 text-center text-xs text-slate-400">
-          <p className="text-[11px] text-slate-400">Kredensial Default Awal:</p>
-          <p className="font-mono text-slate-300 mt-0.5 text-xs bg-slate-950/60 py-1 px-2.5 rounded-lg inline-block border border-slate-800">
-            Username: <strong className="text-emerald-400">admin</strong> | Password: <strong className="text-emerald-400">admin123</strong>
-          </p>
-        </div>
       </div>
     </div>
   );
