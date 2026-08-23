@@ -21,6 +21,18 @@ echo -e "${BOLD}${BLUE}====================================================${NC}
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$APP_DIR"
 
+# Auto-load .env jika file ada, atau buat dari .env.example jika belum ada
+if [ ! -f ".env" ] && [ -f ".env.example" ]; then
+    echo -e "${YELLOW}File .env tidak ditemukan, membuat .env dari .env.example...${NC}"
+    cp .env.example .env
+fi
+
+if [ -f ".env" ]; then
+    set -a
+    source .env
+    set +a
+fi
+
 # 1. Cek Node.js & NPM
 echo -e "\n${BOLD}[1/6] Memeriksa Lingkungan Node.js & NPM...${NC}"
 if ! command -v node &> /dev/null; then
