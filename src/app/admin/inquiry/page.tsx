@@ -42,20 +42,17 @@ export default function AdminInquiriesPage() {
   const [totalPrice, setTotalPrice] = useState<number>(0);
   const [paymentStatus, setPaymentStatus] = useState<string>('DP_PAID');
 
-  // Form states for Modal 2 (Handover & Deposit)
-  const [depositAmount, setDepositAmount] = useState<number>(500000);
-  const [paymentMethodDeposit, setPaymentMethodDeposit] = useState<string>('Transfer BCA');
+  // Form states for Modal 2 (Handover & Pelunasan)
   const [finalPaymentAmount, setFinalPaymentAmount] = useState<number>(0);
   const [paymentMethodFinal, setPaymentMethodFinal] = useState<string>('Transfer BCA');
   const [odometerStart, setOdometerStart] = useState<number>(45000);
 
-  // Form states for Modal 3 (Return & Overtime/Deductions)
+  // Form states for Modal 3 (Return & Overtime/Charges)
   const [odometerEnd, setOdometerEnd] = useState<number>(45350);
   const [overtimeHours, setOvertimeHours] = useState<number>(0);
   const [overtimeRatePerHour, setOvertimeRatePerHour] = useState<number>(50000);
   const [fuelCharge, setFuelCharge] = useState<number>(0);
   const [damageCharge, setDamageCharge] = useState<number>(0);
-  const [paymentMethodRefund, setPaymentMethodRefund] = useState<string>('Transfer BCA');
   const [adminNotes, setAdminNotes] = useState<string>('');
 
   const fetchInquiries = async () => {
@@ -130,28 +127,23 @@ export default function AdminInquiriesPage() {
     setActiveTab('booking');
   };
 
-  // 2. Action: Handover car (Mulai Sewa / Active Rental)
+  // 2. Action: Handover car (Mulai Sewa / Pelunasan Sisa)
   const openHandoverModal = (item: any) => {
     setHandoverModalItem(item);
-    setDepositAmount(item.deposit_amount || 500000);
-    setPaymentMethodDeposit(item.payment_method_deposit || 'Transfer BCA');
     const remaining = Math.max(0, (item.total_price || item.duration_days * 350000) - (item.dp_amount || 0));
     setFinalPaymentAmount(remaining);
     setPaymentMethodFinal(item.payment_method_final || 'Transfer BCA');
     setOdometerStart(item.odometer_start || 45000);
-    setAdminNotes(item.notes_admin || 'Kunci & STNK diserahkan. Uang jaminan ditahan.');
+    setAdminNotes(item.notes_admin || 'Kunci & STNK diserahkan. Sisa pembayaran sewa telah dilunasi.');
   };
 
   const submitHandover = async () => {
     if (!handoverModalItem) return;
     await handleUpdate(handoverModalItem.id, {
       status: 'ACTIVE_RENTAL',
-      deposit_amount: Number(depositAmount),
-      payment_method_deposit: paymentMethodDeposit,
       payment_method_final: paymentMethodFinal,
       payment_status: 'FULLY_PAID',
       odometer_start: Number(odometerStart),
-      deposit_status: 'HELD',
       notes_admin: adminNotes,
     });
     setHandoverModalItem(null);
@@ -170,18 +162,15 @@ export default function AdminInquiriesPage() {
     setOvertimeRatePerHour(50000);
     setFuelCharge(item.fuel_charge || 0);
     setDamageCharge(item.damage_charge || 0);
-    setPaymentMethodRefund(item.payment_method_deposit || 'Transfer BCA');
     setAdminNotes(
       timeStatus.status === 'OVERDUE'
-        ? `Mobil terlambat ${Math.abs(timeStatus.daysDiff)} hari dari jadwal sewa. Denda overtime telah dikalkulasikan.`
-        : 'Mobil kembali dalam kondisi baik. Sisa uang jaminan telah ditransfer balik.'
+        ? `Mobil terlambat ${Math.abs(timeStatus.daysDiff)} hari dari jadwal sewa. Denda keterlambatan telah dicatat.`
+        : 'Mobil kembali dalam kondisi baik dan tepat waktu.'
     );
   };
 
   const calculatedOvertimeFee = overtimeHours * overtimeRatePerHour;
-  const initialDeposit = returnModalItem?.deposit_amount || 500000;
-  const totalDeductions = calculatedOvertimeFee + fuelCharge + damageCharge;
-  const refundDepositAmount = Math.max(0, initialDeposit - totalDeductions);
+  const totalExtraCharges = calculatedOvertimeFee + fuelCharge + damageCharge;
 
   const submitReturn = async () => {
     if (!returnModalItem) return;
@@ -192,7 +181,6 @@ export default function AdminInquiriesPage() {
       overtime_fee: Number(calculatedOvertimeFee),
       fuel_charge: Number(fuelCharge),
       damage_charge: Number(damageCharge),
-      deposit_status: refundDepositAmount > 0 ? 'REFUNDED' : 'DEDUCTED',
       notes_admin: adminNotes,
       actual_return_date: new Date().toLocaleDateString('id-ID'),
     });
@@ -202,7 +190,12 @@ export default function AdminInquiriesPage() {
 
   // Helper to copy structured WA receipt
   const copyInvoiceText = (item: any) => {
-    const text = `*RINCIAN TRANSAKSI SEWA MOBIL — RENTCAR*
+    const totalSewa = item.total_price || 0;
+    const dpMasuk = item.dp_amount || 0;
+    const sisaSewa = Math.max(0, totalSewa - dpMasuk);
+    const totalDenda = (item.overtime_fee || 0) + (item.fuel_charge || 0) + (item.damage_charge || 0);
+
+    let text = `*RINCIAN TRANSAKSI SEWA MOBIL — RENTCAR*
 ----------------------------------------
 📄 *No. Invoice*   : ${item.invoice_no}
 👤 *Nama Penyewa*  : ${item.customer_name}
@@ -210,16 +203,18 @@ export default function AdminInquiriesPage() {
 📅 *Jadwal Sewa*    : ${item.start_date} s/d ${item.end_date} (${item.duration_days} Hari)
 📍 *Titik Ambil*    : ${item.pickup_location}
 
-💰 *RINCIAN BIAYA & PEMBAYARAN:*
-• Total Sewa       : Rp ${(item.total_price || 0).toLocaleString('id-ID')}
-• Pembayaran DP    : Rp ${(item.dp_amount || 0).toLocaleString('id-ID')} (${item.payment_method_dp || 'Transfer'})
-• Status Bayar     : ${item.payment_status === 'FULLY_PAID' ? 'LUNAS' : item.payment_status === 'DP_PAID' ? 'DP DITERIMA' : 'BELUM BAYAR'}
+💰 *RINCIAN PEMBAYARAN:*
+• Total Biaya Sewa : Rp ${totalSewa.toLocaleString('id-ID')}
+• Pembayaran DP    : Rp ${dpMasuk.toLocaleString('id-ID')} (${item.payment_method_dp || 'Transfer'})
+• Sisa Pelunasan   : Rp ${sisaSewa.toLocaleString('id-ID')} (${item.payment_status === 'FULLY_PAID' ? 'LUNAS' : 'Dibayar saat serah terima kunci'})
+• Status Bayar     : ${item.payment_status === 'FULLY_PAID' ? '✅ LUNAS PENUH' : '⏳ DP DITERIMA'}`;
 
-🛡️ *UANG JAMINAN (SECURITY DEPOSIT):*
-• Deposit Ditahan  : Rp ${(item.deposit_amount || 0).toLocaleString('id-ID')} (${item.payment_method_deposit || 'Transfer'})
-• Status Jaminan   : ${item.deposit_status === 'REFUNDED' ? 'SUDAH DI-REFUND' : item.deposit_status === 'DEDUCTED' ? 'DIPOTONG BIAYA' : 'DITAHAN SELAMA SEWA'}
-${item.overtime_fee > 0 ? `• Denda Overtime  : Rp ${item.overtime_fee.toLocaleString('id-ID')} (${item.overtime_hours} Jam)\n` : ''}${item.fuel_charge > 0 ? `• Charge Bensin   : Rp ${item.fuel_charge.toLocaleString('id-ID')}\n` : ''}${item.damage_charge > 0 ? `• Charge Klaim    : Rp ${item.damage_charge.toLocaleString('id-ID')}\n` : ''}
-Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
+    if (totalDenda > 0) {
+      text += `\n\n⚠️ *TAGIHAN BIAYA TAMBAHAN (DENDA/CHARGE):*
+${item.overtime_fee > 0 ? `• Denda Overtime (${item.overtime_hours} Jam) : Rp ${item.overtime_fee.toLocaleString('id-ID')}\n` : ''}${item.fuel_charge > 0 ? `• Charge Kurang Bensin : Rp ${item.fuel_charge.toLocaleString('id-ID')}\n` : ''}${item.damage_charge > 0 ? `• Charge Klaim Kerusakan : Rp ${item.damage_charge.toLocaleString('id-ID')}\n` : ''}👉 *Total Tagihan Tambahan : Rp ${totalDenda.toLocaleString('id-ID')}*`;
+    }
+
+    text += `\n\nTerima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
 
     navigator.clipboard.writeText(text);
     setCopiedText(true);
@@ -479,7 +474,7 @@ Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
             )}
           </div>
           <p className={`text-[11px] mt-0.5 truncate ${activeTab === 'active' ? 'text-white/80' : 'text-slate-500'}`}>
-            {overdueActiveList.length > 0 ? '⚠️ Ada mobil melewati batas!' : 'Deposit ditahan & pantau jam'}
+            {overdueActiveList.length > 0 ? '⚠️ Ada mobil melewati batas!' : 'Mobil di jalan & pantau jam'}
           </p>
         </button>
 
@@ -505,7 +500,7 @@ Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
           </div>
           <div className="font-extrabold text-sm sm:text-base">Riwayat Selesai</div>
           <p className={`text-[11px] mt-0.5 truncate ${activeTab === 'history' ? 'text-slate-300' : 'text-slate-500'}`}>
-            Lunas, deposit di-refund, & denda
+            Lunas & arsip transaksi selesai
           </p>
         </button>
       </div>
@@ -521,8 +516,8 @@ Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
                 <th className="px-5 py-3.5">Jadwal Sewa</th>
                 {activeTab === 'inquiry' && <th className="px-5 py-3.5">Estimasi Biaya</th>}
                 {activeTab === 'booking' && <th className="px-5 py-3.5">DP & Metode Bayar</th>}
-                {activeTab === 'active' && <th className="px-5 py-3.5">Deposit Jaminan & KM</th>}
-                {activeTab === 'history' && <th className="px-5 py-3.5">Rincian Denda & Refund</th>}
+                {activeTab === 'active' && <th className="px-5 py-3.5">Pelunasan Sisa & KM</th>}
+                {activeTab === 'history' && <th className="px-5 py-3.5">Total Sewa & Denda</th>}
                 <th className="px-5 py-3.5">Status & Waktu</th>
                 <th className="px-5 py-3.5 text-right">Aksi Admin</th>
               </tr>
@@ -615,19 +610,19 @@ Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
                             {item.payment_method_dp || 'Transfer BCA'}
                           </span>
                           <div className="text-slate-500 text-[11px] mt-0.5">
-                            Total: Rp {(item.total_price || 0).toLocaleString('id-ID')}
+                            Total Sewa: Rp {(item.total_price || 0).toLocaleString('id-ID')}
                           </div>
                         </td>
                       )}
 
-                      {/* Tab 3: Deposit & KM Column */}
+                      {/* Tab 3: Pelunasan & KM Column */}
                       {activeTab === 'active' && (
                         <td className="px-5 py-4 text-xs">
                           <div className="font-bold text-emerald-700">
-                            Deposit: Rp {(item.deposit_amount || 500000).toLocaleString('id-ID')}
+                            Pelunasan: Rp {Math.max(0, (item.total_price || 0) - (item.dp_amount || 0)).toLocaleString('id-ID')}
                           </div>
                           <span className="inline-block px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px] font-semibold mt-0.5 border border-emerald-200">
-                            {item.payment_method_deposit || 'Transfer BCA'}
+                            {item.payment_method_final || item.payment_method_dp || 'Transfer'}
                           </span>
                           <div className="text-slate-500 text-[11px] mt-0.5">
                             KM Awal: {item.odometer_start ? item.odometer_start.toLocaleString('id-ID') : '-'} KM
@@ -642,11 +637,11 @@ Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
                             {item.actual_return_date ? `Kembali: ${item.actual_return_date}` : 'Selesai'}
                           </div>
                           <div className="text-[11px] text-slate-500 mt-0.5">
-                            Deposit: <span className="font-semibold">{item.deposit_status === 'REFUNDED' ? 'Di-Refund' : 'Dipotong'}</span>
+                            Total Sewa: <span className="font-bold text-slate-900">Rp {(item.total_price || 0).toLocaleString('id-ID')}</span>
                           </div>
                           {(item.overtime_fee > 0 || item.fuel_charge > 0 || item.damage_charge > 0) && (
                             <div className="text-rose-600 font-bold text-[11px] mt-0.5">
-                              Total Denda/Charge: Rp {((item.overtime_fee || 0) + (item.fuel_charge || 0) + (item.damage_charge || 0)).toLocaleString('id-ID')}
+                              Tagihan Denda: Rp {((item.overtime_fee || 0) + (item.fuel_charge || 0) + (item.damage_charge || 0)).toLocaleString('id-ID')}
                             </div>
                           )}
                         </td>
@@ -664,7 +659,7 @@ Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
                         <button
                           type="button"
                           onClick={() => copyInvoiceText(item)}
-                          className="p-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                          className="p-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
                           title="Salin Rincian Tagihan untuk WA"
                         >
                           <FileTextIcon size={16} />
@@ -694,14 +689,14 @@ Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
                           </button>
                         )}
 
-                        {/* Stage 2 Button: Handover Key */}
+                        {/* Stage 2 Button: Handover Key & Pelunasan */}
                         {activeTab === 'booking' && (
                           <button
                             type="button"
                             onClick={() => openHandoverModal(item)}
                             className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-all shadow-sm cursor-pointer"
                           >
-                            Serah Terima & Jaminan
+                            Serah Terima & Pelunasan
                           </button>
                         )}
 
@@ -720,7 +715,7 @@ Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
                         <button
                           type="button"
                           onClick={() => setSelectedInquiry(item)}
-                          className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors"
+                          className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
                           title="Lihat Detail"
                         >
                           Detail
@@ -730,7 +725,7 @@ Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
                         <button
                           type="button"
                           onClick={() => handleDeleteInquiry(item.id, item.invoice_no)}
-                          className="p-2 rounded-xl bg-slate-100 hover:bg-rose-100 text-slate-400 hover:text-rose-600 transition-colors"
+                          className="p-2 rounded-xl bg-slate-100 hover:bg-rose-100 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
                           title="Hapus"
                         >
                           <TrashIcon size={16} />
@@ -772,7 +767,30 @@ Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
             <div className="space-y-3 text-xs sm:text-sm">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Nominal DP (Rp)</label>
+                  <label className="block font-bold text-slate-700 mb-1">Total Biaya Sewa (Rp)</label>
+                  <input
+                    type="number"
+                    value={totalPrice}
+                    onChange={(e) => setTotalPrice(Number(e.target.value))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Status Pembayaran</label>
+                  <select
+                    value={paymentStatus}
+                    onChange={(e) => setPaymentStatus(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800"
+                  >
+                    <option value="DP_PAID">DP Diterima (Belum Lunas)</option>
+                    <option value="FULLY_PAID">Lunas Penuh (Tanpa DP)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Nominal DP Diterima (Rp)</label>
                   <input
                     type="number"
                     value={dpAmount}
@@ -794,26 +812,24 @@ Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Total Biaya Sewa (Rp)</label>
-                  <input
-                    type="number"
-                    value={totalPrice}
-                    onChange={(e) => setTotalPrice(Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-bold"
-                  />
+              {/* Rekapitulasi Pembayaran Interaktif di Modal 1 */}
+              <div className="p-3.5 rounded-2xl bg-purple-50 border border-purple-200 space-y-1.5 text-xs text-purple-950">
+                <div className="font-extrabold text-xs uppercase tracking-wider text-purple-900 mb-1">
+                  💡 Ringkasan Perhitungan Pembayaran:
                 </div>
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Status Pembayaran</label>
-                  <select
-                    value={paymentStatus}
-                    onChange={(e) => setPaymentStatus(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800"
-                  >
-                    <option value="DP_PAID">DP Diterima (Belum Lunas)</option>
-                    <option value="FULLY_PAID">Lunas Penuh</option>
-                  </select>
+                <div className="flex justify-between">
+                  <span>Total Biaya Sewa:</span>
+                  <span className="font-bold">Rp {totalPrice.toLocaleString('id-ID')}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>DP Diterima ({paymentMethodDp}):</span>
+                  <span className="font-bold text-purple-700">- Rp {dpAmount.toLocaleString('id-ID')}</span>
+                </div>
+                <div className="flex justify-between pt-1.5 border-t border-purple-200/70 font-black text-sm text-purple-900">
+                  <span>👉 Sisa Pelunasan saat Ambil Kunci:</span>
+                  <span className="text-purple-700">
+                    Rp {Math.max(0, totalPrice - dpAmount).toLocaleString('id-ID')}
+                  </span>
                 </div>
               </div>
 
@@ -823,7 +839,7 @@ Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
                   rows={2}
                   value={adminNotes}
                   onChange={(e) => setAdminNotes(e.target.value)}
-                  placeholder="Contoh: Bukti transfer BCA terverifikasi. KTP dan SIM A sudah dicek."
+                  placeholder="Contoh: Bukti transfer DP terverifikasi. KTP dan SIM A sudah dicek."
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800"
                 />
               </div>
@@ -850,7 +866,7 @@ Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL 2: Serah Terima Kunci, Pelunasan & Jaminan (Tahap 2 -> Tahap 3)       */}
+      {/* MODAL 2: Serah Terima Kunci & Pelunasan Sisa (Tahap 2 -> Tahap 3)          */}
       {/* ========================================================================= */}
       {handoverModalItem && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
@@ -858,7 +874,7 @@ Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
                 <h3 className="font-extrabold text-lg text-slate-900">
-                  Serah Terima Kunci & Uang Jaminan
+                  Serah Terima Kunci & Pelunasan Sewa
                 </h3>
                 <p className="text-xs text-slate-500">
                   {handoverModalItem.invoice_no} — {handoverModalItem.car_name} ({handoverModalItem.customer_name})
@@ -875,32 +891,6 @@ Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
             <div className="space-y-3 text-xs sm:text-sm">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    Uang Jaminan / Deposit (Rp)
-                  </label>
-                  <input
-                    type="number"
-                    value={depositAmount}
-                    onChange={(e) => setDepositAmount(Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Metode Bayar Deposit</label>
-                  <select
-                    value={paymentMethodDeposit}
-                    onChange={(e) => setPaymentMethodDeposit(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800"
-                  >
-                    {PAYMENT_METHODS.map((m) => (
-                      <option key={m} value={m}>{m}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
                   <label className="block font-bold text-slate-700 mb-1">Pelunasan Sisa Sewa (Rp)</label>
                   <input
                     type="number"
@@ -910,7 +900,7 @@ Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Metode Pelunasan</label>
+                  <label className="block font-bold text-slate-700 mb-1">Metode Pelunasan Sewa</label>
                   <select
                     value={paymentMethodFinal}
                     onChange={(e) => setPaymentMethodFinal(e.target.value)}
@@ -939,9 +929,14 @@ Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
                   rows={2}
                   value={adminNotes}
                   onChange={(e) => setAdminNotes(e.target.value)}
-                  placeholder="Contoh: Bensin posisi 4/4 bar, baret halus di bumper depan kiri, STNK asli diserahkan."
+                  placeholder="Contoh: Bensin posisi 4/4 bar, STNK asli diserahkan, kondisi fisik mulus."
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800"
                 />
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 flex items-center gap-2">
+                <CheckIcon size={18} className="text-emerald-600 shrink-0" />
+                <span>Pelunasan sisa sewa sebesar <strong>Rp {finalPaymentAmount.toLocaleString('id-ID')}</strong> akan menandai status sewa menjadi <strong>LUNAS PENUH</strong>.</span>
               </div>
             </div>
 
@@ -958,7 +953,7 @@ Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
                 onClick={submitHandover}
                 className="px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm cursor-pointer"
               >
-                Mulai Sewa (Status: Sedang Disewa)
+                Serah Terima & Mulai Sewa
               </button>
             </div>
           </div>
@@ -1030,7 +1025,7 @@ Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1 text-[11px]">Charge Baret/Klaim (Rp)</label>
+                  <label className="block font-bold text-slate-700 mb-1 text-[11px]">Charge Klaim/Baret (Rp)</label>
                   <input
                     type="number"
                     value={damageCharge}
@@ -1040,46 +1035,34 @@ Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
                 </div>
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Metode Transfer Balik Refund Deposit</label>
-                <select
-                  value={paymentMethodRefund}
-                  onChange={(e) => setPaymentMethodRefund(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-slate-800"
-                >
-                  {PAYMENT_METHODS.map((m) => (
-                    <option key={m} value={m}>{m}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Kalkulasi Ringkasan Deposit & Denda */}
+              {/* Kalkulasi Ringkasan Denda */}
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1.5 text-xs">
-                <div className="flex justify-between text-slate-600">
-                  <span>Deposit Awal Ditahan:</span>
-                  <span className="font-bold">Rp {initialDeposit.toLocaleString('id-ID')}</span>
+                <div className="font-extrabold text-xs uppercase tracking-wider text-slate-700 mb-1">
+                  Tagihan Biaya Tambahan:
                 </div>
                 {calculatedOvertimeFee > 0 && (
                   <div className="flex justify-between text-rose-600 font-semibold">
                     <span>Denda Overtime ({overtimeHours} Jam):</span>
-                    <span>- Rp {calculatedOvertimeFee.toLocaleString('id-ID')}</span>
+                    <span>+ Rp {calculatedOvertimeFee.toLocaleString('id-ID')}</span>
                   </div>
                 )}
                 {fuelCharge > 0 && (
                   <div className="flex justify-between text-rose-600 font-semibold">
-                    <span>Potongan Bensin Kurang:</span>
-                    <span>- Rp {fuelCharge.toLocaleString('id-ID')}</span>
+                    <span>Charge Bensin Kurang:</span>
+                    <span>+ Rp {fuelCharge.toLocaleString('id-ID')}</span>
                   </div>
                 )}
                 {damageCharge > 0 && (
                   <div className="flex justify-between text-rose-600 font-semibold">
-                    <span>Potongan Kerusakan / Baret:</span>
-                    <span>- Rp {damageCharge.toLocaleString('id-ID')}</span>
+                    <span>Charge Klaim Kerusakan / Baret:</span>
+                    <span>+ Rp {damageCharge.toLocaleString('id-ID')}</span>
                   </div>
                 )}
-                <div className="border-t border-slate-200 pt-1.5 flex justify-between font-extrabold text-emerald-800 text-sm">
-                  <span>Sisa Deposit yang Ditransfer Balik:</span>
-                  <span>Rp {refundDepositAmount.toLocaleString('id-ID')}</span>
+                <div className="border-t border-slate-200 pt-1.5 flex justify-between font-black text-sm text-slate-900">
+                  <span>Total Tagihan Tambahan:</span>
+                  <span className={totalExtraCharges > 0 ? 'text-rose-600' : 'text-emerald-700'}>
+                    {totalExtraCharges > 0 ? `Rp ${totalExtraCharges.toLocaleString('id-ID')}` : 'Rp 0 (Bebas Denda)'}
+                  </span>
                 </div>
               </div>
 
@@ -1168,42 +1151,44 @@ Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
                   <span>DP Diterima ({selectedInquiry.payment_method_dp || 'Transfer'}):</span>
                   <span className="font-bold">Rp {(selectedInquiry.dp_amount || 0).toLocaleString('id-ID')}</span>
                 </div>
+                <div className="flex justify-between text-slate-700">
+                  <span>Pelunasan Sisa ({selectedInquiry.payment_method_final || 'Transfer'}):</span>
+                  <span className="font-bold">Rp {Math.max(0, (selectedInquiry.total_price || 0) - (selectedInquiry.dp_amount || 0)).toLocaleString('id-ID')}</span>
+                </div>
                 <div className="flex justify-between text-purple-800 font-semibold pt-1 border-t border-purple-200/60">
                   <span>Status Pembayaran:</span>
                   <span className="uppercase">{selectedInquiry.payment_status || 'DP_PAID'}</span>
                 </div>
               </div>
 
-              {/* Rincian Uang Jaminan & Denda */}
-              <div className="p-3.5 bg-emerald-50/60 rounded-2xl border border-emerald-100 space-y-1.5 text-xs">
-                <div className="font-bold text-emerald-900 text-sm mb-1">Uang Jaminan & Denda</div>
-                <div className="flex justify-between text-slate-700">
-                  <span>Deposit Ditahan ({selectedInquiry.payment_method_deposit || 'Transfer'}):</span>
-                  <span className="font-bold">Rp {(selectedInquiry.deposit_amount || 0).toLocaleString('id-ID')}</span>
+              {/* Rincian Denda jika ada */}
+              {(selectedInquiry.overtime_fee > 0 || selectedInquiry.fuel_charge > 0 || selectedInquiry.damage_charge > 0) && (
+                <div className="p-3.5 bg-rose-50/60 rounded-2xl border border-rose-100 space-y-1.5 text-xs">
+                  <div className="font-bold text-rose-900 text-sm mb-1">Tagihan Biaya Tambahan</div>
+                  {selectedInquiry.overtime_fee > 0 && (
+                    <div className="flex justify-between text-rose-600 font-semibold">
+                      <span>Denda Overtime ({selectedInquiry.overtime_hours} Jam):</span>
+                      <span>Rp {selectedInquiry.overtime_fee.toLocaleString('id-ID')}</span>
+                    </div>
+                  )}
+                  {selectedInquiry.fuel_charge > 0 && (
+                    <div className="flex justify-between text-rose-600 font-semibold">
+                      <span>Charge Bensin Kurang:</span>
+                      <span>Rp {selectedInquiry.fuel_charge.toLocaleString('id-ID')}</span>
+                    </div>
+                  )}
+                  {selectedInquiry.damage_charge > 0 && (
+                    <div className="flex justify-between text-rose-600 font-semibold">
+                      <span>Charge Baret / Klaim:</span>
+                      <span>Rp {selectedInquiry.damage_charge.toLocaleString('id-ID')}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-rose-800 font-black pt-1 border-t border-rose-200">
+                    <span>Total Tagihan Tambahan:</span>
+                    <span>Rp {((selectedInquiry.overtime_fee || 0) + (selectedInquiry.fuel_charge || 0) + (selectedInquiry.damage_charge || 0)).toLocaleString('id-ID')}</span>
+                  </div>
                 </div>
-                {selectedInquiry.overtime_fee > 0 && (
-                  <div className="flex justify-between text-rose-600 font-semibold">
-                    <span>Denda Overtime ({selectedInquiry.overtime_hours} Jam):</span>
-                    <span>Rp {selectedInquiry.overtime_fee.toLocaleString('id-ID')}</span>
-                  </div>
-                )}
-                {selectedInquiry.fuel_charge > 0 && (
-                  <div className="flex justify-between text-rose-600 font-semibold">
-                    <span>Charge Bensin Kurang:</span>
-                    <span>Rp {selectedInquiry.fuel_charge.toLocaleString('id-ID')}</span>
-                  </div>
-                )}
-                {selectedInquiry.damage_charge > 0 && (
-                  <div className="flex justify-between text-rose-600 font-semibold">
-                    <span>Charge Baret / Klaim:</span>
-                    <span>Rp {selectedInquiry.damage_charge.toLocaleString('id-ID')}</span>
-                  </div>
-                )}
-                <div className="flex justify-between text-emerald-800 font-semibold pt-1 border-t border-emerald-200/60">
-                  <span>Status Deposit:</span>
-                  <span className="uppercase">{selectedInquiry.deposit_status || 'HELD'}</span>
-                </div>
-              </div>
+              )}
 
               {selectedInquiry.notes && (
                 <div>
