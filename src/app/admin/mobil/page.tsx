@@ -13,9 +13,13 @@ import {
 } from '@/components/ui/Icons';
 import { CarItem } from '@/components/vehicle/VehicleCard';
 
+type FleetTab = 'all' | 'ready' | 'running';
+
 export default function AdminCarsPage() {
   const [cars, setCars] = useState<CarItem[]>([]);
+  const [inquiries, setInquiries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fleetTab, setFleetTab] = useState<FleetTab>('all');
   const [modalOpen, setModalOpen] = useState(false);
   const [editingCar, setEditingCar] = useState<CarItem | null>(null);
 
@@ -68,13 +72,21 @@ export default function AdminCarsPage() {
     }
   };
 
-  const fetchCars = async () => {
+  const fetchCarsAndInquiries = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/cars?all=true');
-      const data = await res.json();
-      if (data.success) {
-        setCars(data.data);
+      const [resCars, resInq] = await Promise.all([
+        fetch('/api/cars?all=true'),
+        fetch('/api/inquiries'),
+      ]);
+      const dataCars = await resCars.json();
+      const dataInq = await resInq.json();
+
+      if (dataCars.success) {
+        setCars(dataCars.data);
+      }
+      if (dataInq.success) {
+        setInquiries(dataInq.data);
       }
     } catch (err) {
       console.error(err);
@@ -84,7 +96,7 @@ export default function AdminCarsPage() {
   };
 
   useEffect(() => {
-    fetchCars();
+    fetchCarsAndInquiries();
   }, []);
 
   const openAddModal = () => {
@@ -100,10 +112,11 @@ export default function AdminCarsPage() {
     setPricePerDay(350000);
     setCategory('MPV');
     setDescription('');
-    setFeaturesText('AC Double Blower, Audio Touchscreen, Dual SRS Airbag, USB Fast Charger');
+    setFeaturesText('AC, Audio Bluetooth, Dual SRS Airbag, USB Fast Charger');
     setImageUrl('/images/cars/toyota-avanza.jpg');
     setStatus('active');
     setSortOrder(cars.length + 1);
+    setUploadError(null);
     setModalOpen(true);
   };
 
@@ -124,29 +137,43 @@ export default function AdminCarsPage() {
     setImageUrl(car.image_url);
     setStatus(car.status || 'active');
     setSortOrder(car.sort_order || 1);
+    setUploadError(null);
     setModalOpen(true);
   };
 
-  const handleSaveCar = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setMessage(null);
+  const handleBrandModelChange = (newBrand: string, newModel: string) => {
+    setBrand(newBrand);
+    setModel(newModel);
+    if (!editingCar) {
+      const generatedSlug = `${newBrand}-${newModel}`
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '');
+      setSlug(generatedSlug);
+    }
+  };
 
-    const generatedSlug = slug.trim() || `${brand.toLowerCase()}-${model.toLowerCase()}`.replace(/\s+/g, '-');
-    const featuresList = featuresText.split(',').map((f) => f.trim()).filter(Boolean);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const featuresArray = featuresText
+      .split(',')
+      .map((f) => f.trim())
+      .filter(Boolean);
 
     const payload = {
       brand,
       model,
       plate_number: plateNumber.trim().toUpperCase() || 'D 1234 AMS',
-      slug: generatedSlug,
-      year,
-      capacity,
+      slug,
+      year: Number(year),
+      capacity: Number(capacity),
       transmission,
       fuel,
-      price_per_day: pricePerDay,
+      price_per_day: Number(pricePerDay),
       category,
       description,
-      features: featuresList,
+      features: featuresArray,
       image_url: imageUrl,
       gallery: [imageUrl],
       status,
@@ -173,7 +200,7 @@ export default function AdminCarsPage() {
       if (data.success) {
         setMessage({ text: data.message, type: 'success' });
         setModalOpen(false);
-        fetchCars();
+        fetchCarsAndInquiries();
       } else {
         setMessage({ text: data.error || 'Gagal menyimpan mobil', type: 'error' });
       }
@@ -189,12 +216,34 @@ export default function AdminCarsPage() {
       const res = await fetch(`/api/cars/${id}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) {
-        fetchCars();
+        fetchCarsAndInquiries();
       }
     } catch (err) {
       console.error(err);
     }
   };
+
+  // Helper to find active rental for a car
+  const getActiveRentalForCar = (car: CarItem) => {
+    return inquiries.find((i) => {
+      if (i.status !== 'ACTIVE_RENTAL') return false;
+      if (i.car_id && i.car_id === car.id) return true;
+      if (car.plate_number && i.car_name && i.car_name.toLowerCase().includes(car.plate_number.toLowerCase())) return true;
+      if (i.car_name && i.car_name.toLowerCase().includes(car.model.toLowerCase())) return true;
+      return false;
+    });
+  };
+
+  // Filter cars based on real-time rental status
+  const runningCars = cars.filter((c) => Boolean(getActiveRentalForCar(c)));
+  const readyCars = cars.filter((c) => !getActiveRentalForCar(c) && c.status !== 'inactive');
+
+  const filteredCars =
+    fleetTab === 'ready'
+      ? readyCars
+      : fleetTab === 'running'
+      ? runningCars
+      : cars;
 
   const presetImages = [
     { label: 'Toyota Avanza', url: '/images/cars/toyota-avanza.jpg' },
@@ -206,7 +255,7 @@ export default function AdminCarsPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24">
       {/* Header & Add Button */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -214,7 +263,7 @@ export default function AdminCarsPage() {
             Manajemen Armada Mobil
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Tambah, edit spesifikasi, ubah foto, dan atur ketersediaan mobil di landing page.
+            Pantau ketersediaan armada fisik, plat nomor, unit yang sedang jalan, dan kelola spesifikasi mobil.
           </p>
         </div>
 
@@ -237,375 +286,391 @@ export default function AdminCarsPage() {
         </div>
       )}
 
+      {/* 3 FLEET STATUS TABS */}
+      <div className="grid grid-cols-3 gap-3">
+        {/* Tab 1: Ready */}
+        <button
+          onClick={() => setFleetTab('ready')}
+          className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+            fleetTab === 'ready'
+              ? 'bg-emerald-800 text-white border-emerald-800 shadow-md scale-[1.01]'
+              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider opacity-80">Siap Sewa</span>
+            <span className={`px-2 py-0.5 rounded-full text-xs font-black ${
+              fleetTab === 'ready' ? 'bg-white text-emerald-900' : 'bg-emerald-100 text-emerald-800'
+            }`}>
+              {readyCars.length}
+            </span>
+          </div>
+          <div className="font-extrabold text-sm sm:text-base mt-1">🟢 Ready (Di Pool)</div>
+          <p className="text-[11px] opacity-75 mt-0.5 truncate">Armada bebas jadwal & siap disewa</p>
+        </button>
+
+        {/* Tab 2: Berjalan */}
+        <button
+          onClick={() => setFleetTab('running')}
+          className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+            fleetTab === 'running'
+              ? 'bg-blue-900 text-white border-blue-900 shadow-md scale-[1.01]'
+              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider opacity-80">Aktif Dipakai</span>
+            <span className={`px-2 py-0.5 rounded-full text-xs font-black ${
+              fleetTab === 'running' ? 'bg-white text-blue-900' : 'bg-blue-100 text-blue-800'
+            }`}>
+              {runningCars.length}
+            </span>
+          </div>
+          <div className="font-extrabold text-sm sm:text-base mt-1">🔵 Berjalan (Sedang Disewa)</div>
+          <p className="text-[11px] opacity-75 mt-0.5 truncate">Armada sedang di jalan oleh penyewa</p>
+        </button>
+
+        {/* Tab 3: Semua Mobil */}
+        <button
+          onClick={() => setFleetTab('all')}
+          className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+            fleetTab === 'all'
+              ? 'bg-slate-900 text-white border-slate-900 shadow-md scale-[1.01]'
+              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider opacity-80">Total Garasi</span>
+            <span className={`px-2 py-0.5 rounded-full text-xs font-black ${
+              fleetTab === 'all' ? 'bg-white text-slate-900' : 'bg-slate-100 text-slate-700'
+            }`}>
+              {cars.length}
+            </span>
+          </div>
+          <div className="font-extrabold text-sm sm:text-base mt-1">Semua Armada</div>
+          <p className="text-[11px] opacity-75 mt-0.5 truncate">Seluruh unit terdaftar di sistem</p>
+        </button>
+      </div>
+
       {/* Cars List Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 card-shadow overflow-hidden">
+      <div className="bg-white rounded-3xl border border-slate-200 card-shadow overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs sm:text-sm">
             <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200/80">
               <tr>
                 <th className="px-5 py-3.5">Foto</th>
-                <th className="px-5 py-3.5">Kendaraan</th>
+                <th className="px-5 py-3.5">Kendaraan & Plat Nomor</th>
                 <th className="px-5 py-3.5">Kategori</th>
                 <th className="px-5 py-3.5">Spesifikasi</th>
                 <th className="px-5 py-3.5">Tarif Harian</th>
-                <th className="px-5 py-3.5">Status</th>
+                <th className="px-5 py-3.5">Status Ketersediaan Fisik</th>
                 <th className="px-5 py-3.5 text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {cars.map((car) => (
-                <tr key={car.id} className="hover:bg-slate-50/70 transition-colors">
-                  <td className="px-5 py-3">
-                    <div className="w-16 h-12 bg-slate-100 rounded-lg overflow-hidden relative border border-slate-200">
-                      <Image
-                        src={car.image_url}
-                        alt={car.model}
-                        fill
-                        className="object-contain"
-                      />
-                    </div>
-                  </td>
-                  <td className="px-5 py-3">
-                    <div className="font-bold text-slate-900">{car.brand} {car.model}</div>
-                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                      <span className="inline-block bg-slate-900 text-amber-300 font-mono text-[10px] font-extrabold px-2 py-0.5 rounded border border-slate-700 shadow-xs tracking-wider">
-                        {car.plate_number || 'D 1234 AMS'}
-                      </span>
-                      <span className="text-slate-400 text-[11px] font-mono">/{car.slug}</span>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3">
-                    <span className="inline-block px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-semibold">
-                      {car.category}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3 text-slate-600 text-xs">
-                    <div>{car.capacity} Kursi · {car.transmission}</div>
-                    <div className="text-slate-400">{car.fuel} · Thn {car.year}</div>
-                  </td>
-                  <td className="px-5 py-3 font-bold text-slate-900">
-                    Rp {car.price_per_day?.toLocaleString('id-ID')}
-                  </td>
-                  <td className="px-5 py-3">
-                    <span
-                      className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                        car.status === 'active'
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : car.status === 'maintenance'
-                          ? 'bg-amber-100 text-amber-700'
-                          : 'bg-slate-100 text-slate-500'
-                      }`}
-                    >
-                      {car.status === 'active' ? '● Aktif' : car.status === 'maintenance' ? '▲ Servis' : '○ Nonaktif'}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => openEditModal(car)}
-                        className="p-1.5 rounded-lg text-slate-600 hover:text-brand-navy hover:bg-slate-100 transition-colors"
-                        title="Edit Mobil"
-                      >
-                        <EditIcon size={16} />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteCar(car.id, `${car.brand} ${car.model}`)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                        title="Hapus Mobil"
-                      >
-                        <TrashIcon size={16} />
-                      </button>
-                    </div>
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
+                    Memuat data armada...
                   </td>
                 </tr>
-              ))}
+              ) : filteredCars.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
+                    Tidak ada mobil pada kategori filter ini.
+                  </td>
+                </tr>
+              ) : (
+                filteredCars.map((car) => {
+                  const activeRental = getActiveRentalForCar(car);
+                  const isRunning = Boolean(activeRental);
+
+                  return (
+                    <tr key={car.id} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="px-5 py-3.5">
+                        <div className="w-16 h-12 bg-slate-100 rounded-xl overflow-hidden relative border border-slate-200 shadow-2xs">
+                          <Image
+                            src={car.image_url}
+                            alt={car.model}
+                            fill
+                            className="object-contain p-1"
+                          />
+                        </div>
+                      </td>
+
+                      <td className="px-5 py-3.5">
+                        <div className="font-extrabold text-slate-900 text-sm">{car.brand} {car.model}</div>
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          <span className="inline-block bg-slate-900 text-amber-300 font-mono text-[11px] font-black px-2 py-0.5 rounded-md border border-slate-700 shadow-xs tracking-wider">
+                            {car.plate_number || 'D 1234 AMS'}
+                          </span>
+                          <span className="text-slate-400 text-[11px] font-mono">/{car.slug}</span>
+                        </div>
+
+                        {/* If car is running, show current renter info */}
+                        {isRunning && activeRental && (
+                          <div className="mt-1.5 text-[11px] bg-blue-50 text-blue-900 px-2 py-1 rounded-lg border border-blue-200 font-medium">
+                            <span>Sedang disewa: <strong>{activeRental.customer_name}</strong> ({activeRental.invoice_no}) s/d {activeRental.end_date}</span>
+                          </div>
+                        )}
+                      </td>
+
+                      <td className="px-5 py-3.5">
+                        <span className="inline-block px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-bold">
+                          {car.category}
+                        </span>
+                      </td>
+
+                      <td className="px-5 py-3.5 text-slate-600 text-xs">
+                        <div className="font-semibold">{car.capacity} Kursi • {car.transmission}</div>
+                        <div className="text-slate-400 text-[11px] mt-0.5">{car.fuel} • Thn {car.year}</div>
+                      </td>
+
+                      <td className="px-5 py-3.5">
+                        <span className="font-extrabold text-slate-900 text-sm">
+                          Rp {car.price_per_day.toLocaleString('id-ID')}
+                        </span>
+                        <span className="text-slate-400 text-xs block">/ hari</span>
+                      </td>
+
+                      <td className="px-5 py-3.5">
+                        {isRunning ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100 text-blue-800 font-extrabold text-xs">
+                            <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+                            <span>Sedang Berjalan</span>
+                          </span>
+                        ) : car.status === 'inactive' ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-500 font-bold text-xs">
+                            <span>Service / Nonaktif</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 font-extrabold text-xs">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                            <span>🟢 Ready di Pool</span>
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="px-5 py-3.5 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => openEditModal(car)}
+                            className="p-2 rounded-xl bg-slate-100 hover:bg-brand-navy hover:text-white text-slate-600 transition-all cursor-pointer shadow-2xs"
+                            title="Edit Mobil"
+                          >
+                            <EditIcon size={15} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCar(car.id, `${car.brand} ${car.model}`)}
+                            className="p-2 rounded-xl bg-slate-100 hover:bg-rose-600 hover:text-white text-slate-400 transition-all cursor-pointer shadow-2xs"
+                            title="Hapus Mobil"
+                          >
+                            <TrashIcon size={15} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Modal Add / Edit Car */}
+      {/* MODAL EDIT / TAMBAH MOBIL */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 sm:p-8 card-shadow my-8 relative max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-6">
-              <h2 className="text-lg font-bold text-slate-900">
-                {editingCar ? 'Edit Data Mobil' : 'Tambah Mobil Baru'}
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 card-shadow space-y-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <h2 className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
+                <CarIcon size={22} className="text-brand-navy" />
+                <span>{editingCar ? 'Edit Data Mobil' : 'Tambah Mobil Baru'}</span>
               </h2>
               <button
                 onClick={() => setModalOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                className="p-2 rounded-full hover:bg-slate-100 text-slate-400 cursor-pointer"
               >
                 <XIcon size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleSaveCar} className="space-y-4 text-xs sm:text-sm">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+            <form onSubmit={handleSubmit} className="space-y-4 text-xs sm:text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Merek Mobil</label>
+                  <label className="block font-bold text-slate-700 mb-1">Merek (Brand) *</label>
                   <input
                     type="text"
+                    required
                     value={brand}
-                    onChange={(e) => setBrand(e.target.value)}
-                    placeholder="Contoh: Toyota"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800"
-                    required
+                    onChange={(e) => handleBrandModelChange(e.target.value, model)}
+                    placeholder="Toyota, Honda, dll"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 focus:bg-white"
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Model / Tipe</label>
+                  <label className="block font-bold text-slate-700 mb-1">Model / Tipe *</label>
                   <input
                     type="text"
+                    required
                     value={model}
-                    onChange={(e) => setModel(e.target.value)}
-                    placeholder="Contoh: Avanza"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800"
-                    required
+                    onChange={(e) => handleBrandModelChange(brand, e.target.value)}
+                    placeholder="Avanza Veloz, Innova, dll"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 focus:bg-white"
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Nomor Plat (Nopol)</label>
+                  <label className="block font-bold text-slate-700 mb-1">Nomor Plat Mobil *</label>
                   <input
                     type="text"
+                    required
                     value={plateNumber}
                     onChange={(e) => setPlateNumber(e.target.value)}
-                    placeholder="Contoh: D 1452 VNZ"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 font-mono font-bold uppercase"
-                    required
+                    placeholder="D 1452 VNZ"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-mono font-bold uppercase focus:bg-white"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Kategori</label>
+                  <label className="block font-bold text-slate-700 mb-1">Kategori *</label>
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 focus:bg-white"
                   >
-                    <option value="MPV">MPV</option>
-                    <option value="SUV">SUV</option>
-                    <option value="City Car">City Car</option>
-                    <option value="Luxury">Luxury</option>
+                    <option value="MPV">MPV (Keluarga)</option>
+                    <option value="SUV">SUV (Tangguh)</option>
+                    <option value="City Car">City Car (Kompak)</option>
+                    <option value="Luxury">Luxury (Mewah)</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Tahun</label>
-                  <input
-                    type="number"
-                    value={year}
-                    onChange={(e) => setYear(Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800"
+                  <label className="block font-bold text-slate-700 mb-1">Tarif Harian (Rp) *</label>
+                  <RupiahInput
+                    value={pricePerDay}
+                    onChange={setPricePerDay}
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Kapasitas Kursi</label>
+                  <label className="block font-bold text-slate-700 mb-1">Tahun Kendaraan *</label>
                   <input
                     type="number"
-                    value={capacity}
-                    onChange={(e) => setCapacity(Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800"
+                    required
+                    value={year}
+                    onChange={(e) => setYear(Number(e.target.value))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 focus:bg-white"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Transmisi</label>
+                  <label className="block font-bold text-slate-700 mb-1">Kapasitas Kursi *</label>
+                  <input
+                    type="number"
+                    required
+                    value={capacity}
+                    onChange={(e) => setCapacity(Number(e.target.value))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 focus:bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Transmisi *</label>
                   <select
                     value={transmission}
                     onChange={(e) => setTransmission(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 focus:bg-white"
                   >
                     <option value="Manual">Manual</option>
                     <option value="Matic">Matic</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Bahan Bakar</label>
+                  <label className="block font-bold text-slate-700 mb-1">Bahan Bakar *</label>
                   <select
                     value={fuel}
                     onChange={(e) => setFuel(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 focus:bg-white"
                   >
                     <option value="Bensin">Bensin</option>
                     <option value="Diesel">Diesel</option>
                     <option value="Hybrid">Hybrid</option>
-                    <option value="Listrik">Listrik</option>
+                    <option value="Listrik">Listrik (EV)</option>
                   </select>
                 </div>
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Tarif / Hari</label>
-                  <RupiahInput
-                    value={pricePerDay}
-                    onChange={setPricePerDay}
-                    placeholder="0"
-                  />
-                </div>
               </div>
 
-              {/* Foto Mobil: Direct Upload & Preset */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="block font-bold text-slate-700">Foto Mobil</label>
-                  <span className="text-[11px] text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                    Otomatis Kompres WebP + Sharpen
-                  </span>
-                </div>
-
-                {/* Upload & Preview Box */}
-                <div className="border-2 border-dashed border-slate-200 hover:border-brand-navy-light rounded-2xl p-4 bg-slate-50/70 transition-all">
-                  <div className="flex flex-col sm:flex-row items-center gap-4">
-                    {/* Live Image Preview */}
-                    <div className="w-36 h-24 sm:w-44 sm:h-28 rounded-xl bg-white border border-slate-200 overflow-hidden relative shrink-0 shadow-sm flex items-center justify-center">
-                      {imageUrl ? (
-                        <Image
-                          src={imageUrl}
-                          alt="Preview Mobil"
-                          fill
-                          className="object-contain p-1"
-                        />
-                      ) : (
-                        <CarIcon size={32} className="text-slate-300" />
-                      )}
-                      {uploading && (
-                        <div className="absolute inset-0 bg-brand-navy/70 backdrop-blur-xs flex flex-col items-center justify-center text-white text-xs font-bold gap-1">
-                          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          <span>Memproses WebP...</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Upload Controls */}
-                    <div className="flex-1 text-center sm:text-left space-y-2">
-                      <p className="text-xs text-slate-600 leading-relaxed">
-                        Unggah foto mobil dari galeri / komputer Anda (JPG, PNG, WebP). Sistem akan otomatis mengompresi dan mempertajam resolusi ke WebP ringan.
-                      </p>
-
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*"
-                        onChange={handleFileUpload}
-                        className="hidden"
-                      />
-
-                      <div className="flex flex-wrap items-center gap-2 pt-1">
-                        <button
-                          type="button"
-                          disabled={uploading}
-                          onClick={() => fileInputRef.current?.click()}
-                          className="px-4 py-2 rounded-xl bg-brand-navy hover:bg-brand-navy-light text-white text-xs font-bold transition-all shadow-sm active:scale-98 disabled:opacity-50 cursor-pointer"
-                        >
-                          {uploading ? 'Mengompres...' : 'Pilih & Upload Foto Baru'}
-                        </button>
-                        {imageUrl && (
-                          <span className="text-[11px] font-mono text-slate-500 truncate max-w-[200px]">
-                            {imageUrl.split('/').pop()}
-                          </span>
-                        )}
-                      </div>
-
-                      {uploadError && (
-                        <p className="text-xs font-semibold text-rose-600 mt-1">{uploadError}</p>
-                      )}
-                    </div>
+              {/* Foto Mobil */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Foto Mobil Utama</label>
+                <div className="flex items-center gap-3">
+                  <div className="w-20 h-14 rounded-xl border border-slate-200 bg-slate-100 overflow-hidden relative shrink-0">
+                    <Image src={imageUrl} alt="Preview" fill className="object-contain p-1" />
+                  </div>
+                  <div className="flex-1 space-y-1.5">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileUpload}
+                      accept="image/*"
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      disabled={uploading}
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                    >
+                      {uploading ? 'Mengunggah...' : '📁 Pilih File Foto dari Komputer'}
+                    </button>
+                    {uploadError && <p className="text-xs text-rose-600">{uploadError}</p>}
                   </div>
                 </div>
 
-                {/* Preset Options as secondary quick pick */}
-                <div>
-                  <span className="text-[11px] font-semibold text-slate-500 block mb-1.5">
-                    Atau gunakan preset bawaan:
-                  </span>
-                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                    {presetImages.map((p, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => {
-                          setImageUrl(p.url);
-                          setUploadError(null);
-                        }}
-                        className={`p-1.5 rounded-xl border text-center transition-all ${
-                          imageUrl === p.url
-                            ? 'border-brand-navy bg-brand-navy/5 shadow-xs ring-1 ring-brand-navy'
-                            : 'border-slate-200 hover:bg-slate-50'
-                        }`}
-                      >
-                        <div className="w-full h-8 relative mb-1">
-                          <Image src={p.url} alt={p.label} fill className="object-contain" />
-                        </div>
-                        <span className="text-[10px] text-slate-600 block truncate font-medium">
-                          {p.label}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
+                {/* Preset Image Options */}
+                <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[11px] text-slate-400">Pilihan Cepat:</span>
+                  {presetImages.map((p) => (
+                    <button
+                      key={p.label}
+                      type="button"
+                      onClick={() => setImageUrl(p.url)}
+                      className={`text-[10px] px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
+                        imageUrl === p.url ? 'bg-brand-navy text-white border-brand-navy' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
                 </div>
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Deskripsi Mobil</label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={2}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800"
-                  placeholder="Keterangan singkat keunggulan mobil..."
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Fasilitas / Fitur (Pisahkan dengan koma)</label>
+                <label className="block font-bold text-slate-700 mb-1">Fitur Tambahan (Pisahkan dengan koma)</label>
                 <input
                   type="text"
                   value={featuresText}
                   onChange={(e) => setFeaturesText(e.target.value)}
-                  placeholder="AC Double Blower, Audio Bluetooth, Dual SRS Airbag"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800"
+                  placeholder="AC, Audio Bluetooth, Dual SRS Airbag, Sensor Parkir"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 focus:bg-white"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Status Ketersediaan</label>
-                  <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800"
-                  >
-                    <option value="active">Aktif (Tampil di Web)</option>
-                    <option value="inactive">Nonaktif (Disembunyikan)</option>
-                    <option value="maintenance">Maintenance (Servis)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Urutan Tampil (Sort Order)</label>
-                  <input
-                    type="number"
-                    value={sortOrder}
-                    onChange={(e) => setSortOrder(Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold"
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-brand-navy hover:bg-brand-navy-light text-white font-bold shadow-sm"
+                  className="px-5 py-2.5 rounded-xl text-xs font-bold bg-brand-navy hover:bg-brand-navy-light text-white shadow-sm transition-all cursor-pointer"
                 >
-                  {editingCar ? 'Simpan Perubahan' : 'Tambah Mobil'}
+                  {editingCar ? 'Simpan Perubahan Mobil' : 'Tambahkan ke Armada'}
                 </button>
               </div>
             </form>
