@@ -64,9 +64,12 @@ export async function POST(request: Request) {
       username: updatedUsername,
     });
 
+    const proto = request.headers.get('x-forwarded-proto');
+    const isHttps = proto === 'https' || request.url.startsWith('https://');
+
     response.cookies.set(ADMIN_COOKIE_NAME, newToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: isHttps,
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 7,
       path: '/',
