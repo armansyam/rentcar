@@ -9,6 +9,7 @@ export interface CarItem {
   id: string;
   brand: string;
   model: string;
+  plate_number?: string;
   slug: string;
   year: number;
   capacity: number;
@@ -42,23 +43,10 @@ export default function VehicleCard({
   }).format(car.price_per_day);
 
   return (
-    <div className="group bg-white rounded-2xl border border-slate-100 overflow-hidden card-shadow card-shadow-hover flex flex-col justify-between transition-all duration-300 relative">
-      {/* Top Favorite Icon */}
-      <button
-        type="button"
-        className="absolute top-3.5 right-3.5 z-10 w-9 h-9 rounded-full bg-white/80 backdrop-blur-sm border border-slate-100 flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-white transition-colors shadow-sm"
-        aria-label="Simpan Favorit"
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-      >
-        <HeartIcon size={18} />
-      </button>
-
-      {/* Car Image Area */}
-      <Link href={`/mobil/${car.slug}`} className="block relative pt-4 px-4 bg-slate-50/50 group-hover:bg-slate-100/60 transition-colors">
-        <div className="relative w-full h-44 sm:h-48 flex items-center justify-center overflow-hidden">
+    <div className="group bg-white rounded-2xl border border-slate-100 overflow-hidden card-shadow hover:card-shadow-hover hover:-translate-y-1 transition-all duration-300 flex flex-col h-full">
+      {/* Image Container with Badge */}
+      <div className="relative aspect-16/10 overflow-hidden bg-slate-100">
+        <Link href={`/mobil/${car.slug}`} className="block w-full h-full relative">
           <Image
             src={car.image_url}
             alt={`${car.brand} ${car.model}`}
@@ -67,8 +55,18 @@ export default function VehicleCard({
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
             className="object-contain p-2 group-hover:scale-105 transition-transform duration-500"
           />
+        </Link>
+        <div className="absolute top-3 left-3 flex items-center gap-1.5 pointer-events-none">
+          <span className="bg-brand-navy/90 backdrop-blur-xs text-white text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">
+            {car.category}
+          </span>
+          {car.plate_number && (
+            <span className="bg-slate-900/90 text-amber-300 font-mono text-[10px] font-extrabold px-2 py-0.5 rounded-md border border-white/20 shadow-xs tracking-wider">
+              {car.plate_number}
+            </span>
+          )}
         </div>
-      </Link>
+      </div>
 
       {/* Car Info & Specs */}
       <div className="p-5 flex-1 flex flex-col justify-between">

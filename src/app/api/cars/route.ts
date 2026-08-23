@@ -49,6 +49,7 @@ export async function POST(request: Request) {
     const {
       brand,
       model,
+      plate_number,
       slug,
       year,
       capacity,
@@ -70,14 +71,15 @@ export async function POST(request: Request) {
 
     const id = `car-${Date.now()}`;
     const insert = db.prepare(`
-      INSERT INTO cars (id, brand, model, slug, year, capacity, transmission, fuel, price_per_day, category, description, features, image_url, gallery, status, sort_order)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO cars (id, brand, model, plate_number, slug, year, capacity, transmission, fuel, price_per_day, category, description, features, image_url, gallery, status, sort_order)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     insert.run(
       id,
       brand,
       model,
+      plate_number || 'D 1234 AMS',
       slug,
       Number(year) || 2024,
       Number(capacity) || 7,

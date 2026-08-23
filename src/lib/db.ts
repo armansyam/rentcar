@@ -20,6 +20,7 @@ db.exec(`
     id TEXT PRIMARY KEY,
     brand TEXT NOT NULL,
     model TEXT NOT NULL,
+    plate_number TEXT NOT NULL DEFAULT 'D 1234 AMS',
     slug TEXT UNIQUE NOT NULL,
     year INTEGER NOT NULL,
     capacity INTEGER NOT NULL,
@@ -77,7 +78,7 @@ db.exec(`
   );
 `);
 
-// Safe migrations for existing inquiries table columns
+// Safe migrations for existing inquiries and cars table columns
 try {
   const existingCols = (db.prepare('PRAGMA table_info(inquiries)').all() as any[]).map((c) => c.name);
   const newCols = [
@@ -107,6 +108,18 @@ try {
         // column already exists
       }
     }
+  }
+
+  // Check cars table for plate_number
+  const existingCarCols = (db.prepare('PRAGMA table_info(cars)').all() as any[]).map((c) => c.name);
+  if (!existingCarCols.includes('plate_number')) {
+    db.exec("ALTER TABLE cars ADD COLUMN plate_number TEXT DEFAULT 'D 1234 AMS'");
+    db.exec("UPDATE cars SET plate_number = 'D 1452 VNZ' WHERE id = 'car-01'");
+    db.exec("UPDATE cars SET plate_number = 'D 1899 RBN' WHERE id = 'car-02'");
+    db.exec("UPDATE cars SET plate_number = 'D 1332 MBL' WHERE id = 'car-03'");
+    db.exec("UPDATE cars SET plate_number = 'D 1777 FTN' WHERE id = 'car-04'");
+    db.exec("UPDATE cars SET plate_number = 'D 1205 BRI' WHERE id = 'car-05'");
+    db.exec("UPDATE cars SET plate_number = 'D 1 AMS' WHERE id = 'car-06'");
   }
 } catch (e) {
   // ignore
@@ -150,8 +163,8 @@ if (settingsCount.count === 0) {
 const carsCount = db.prepare('SELECT COUNT(*) as count FROM cars').get() as { count: number };
 if (carsCount.count === 0) {
   const insertCar = db.prepare(`
-    INSERT INTO cars (id, brand, model, slug, year, capacity, transmission, fuel, price_per_day, category, description, features, image_url, gallery, status, sort_order)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO cars (id, brand, model, plate_number, slug, year, capacity, transmission, fuel, price_per_day, category, description, features, image_url, gallery, status, sort_order)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const initialCars = [
@@ -159,6 +172,7 @@ if (carsCount.count === 0) {
       id: 'car-01',
       brand: 'Toyota',
       model: 'Avanza',
+      plate_number: 'D 1452 VNZ',
       slug: 'toyota-avanza',
       year: 2024,
       capacity: 7,
@@ -177,6 +191,7 @@ if (carsCount.count === 0) {
       id: 'car-02',
       brand: 'Toyota',
       model: 'Innova Reborn',
+      plate_number: 'D 1899 RBN',
       slug: 'toyota-innova-reborn',
       year: 2024,
       capacity: 7,
@@ -195,6 +210,7 @@ if (carsCount.count === 0) {
       id: 'car-03',
       brand: 'Honda',
       model: 'Mobilio',
+      plate_number: 'D 1332 MBL',
       slug: 'honda-mobilio',
       year: 2023,
       capacity: 7,
@@ -213,6 +229,7 @@ if (carsCount.count === 0) {
       id: 'car-04',
       brand: 'Toyota',
       model: 'Fortuner',
+      plate_number: 'D 1777 FTN',
       slug: 'toyota-fortuner',
       year: 2024,
       capacity: 7,
@@ -231,6 +248,7 @@ if (carsCount.count === 0) {
       id: 'car-05',
       brand: 'Honda',
       model: 'Brio',
+      plate_number: 'D 1205 BRI',
       slug: 'honda-brio',
       year: 2024,
       capacity: 5,
@@ -238,8 +256,8 @@ if (carsCount.count === 0) {
       fuel: 'Bensin',
       price_per_day: 300000,
       category: 'City Car',
-      description: 'City car kompak dan sangat lincah untuk menyusuri jalanan kota. Sangat hemat bahan bakar, mudah parkir, dan tetap nyaman untuk 5 penumpang.',
-      features: JSON.stringify(['Transmisi Otomatis CVT', 'Audio Touchscreen', 'Electric Power Steering', 'Dual Airbags', 'Fog Lamps', 'Keyless Entry']),
+      description: 'City car lincah, modern, dan sangat hemat bahan bakar. Sangat pas untuk menjelajahi area perkotaan yang padat dengan radius putar kecil.',
+      features: JSON.stringify(['Transmisi CVT Responsif', 'Audio Touchscreen 7 Inch', 'Dual SRS Airbag', 'Sensor Parkir', 'Velg Two-tone Sporty', 'Bagasi Luas']),
       image_url: '/images/cars/honda-brio.jpg',
       gallery: JSON.stringify(['/images/cars/honda-brio.jpg']),
       status: 'active',
@@ -249,6 +267,7 @@ if (carsCount.count === 0) {
       id: 'car-06',
       brand: 'Toyota',
       model: 'Alphard',
+      plate_number: 'D 1 AMS',
       slug: 'toyota-alphard',
       year: 2024,
       capacity: 7,
@@ -256,39 +275,40 @@ if (carsCount.count === 0) {
       fuel: 'Bensin',
       price_per_day: 2500000,
       category: 'Luxury',
-      description: 'VIP Executive Van kelas tertinggi. Memberikan kenyamanan seperti berada di kabin pesawat first class untuk tamu penting, acara pernikahan, atau kebutuhan eksekutif.',
-      features: JSON.stringify(['Ottoman Captain Seats dengan Pemanas & Pendingin', 'Dual Sunroof / Moonroof', 'JBL Premium Surround Sound System', 'Power Sliding Doors', 'Ambient Lighting 16 Warna', 'Toyota Safety Sense']),
+      description: 'Kemewahan MPV premium tertinggi untuk tamu kehormatan, VIP, atau momen spesial. Kabin first-class dengan captain seat ottoman dan panoramic sunroof.',
+      features: JSON.stringify(['Executive Lounge Captain Seat', 'Twin Sunroof / Moonroof', 'Power Sliding Door', 'Audio JBL Premium 17 Speaker', 'Kamera 360 & Toyota Safety Sense', 'Suspensi Udara Adaptif']),
       image_url: '/images/cars/toyota-alphard.jpg',
       gallery: JSON.stringify(['/images/cars/toyota-alphard.jpg']),
       status: 'active',
       sort_order: 6,
-    }
+    },
   ];
 
-  const insertAllCars = db.transaction((carsList) => {
-    for (const c of carsList) {
+  const insertCarsTransaction = db.transaction((carsList: typeof initialCars) => {
+    for (const car of carsList) {
       insertCar.run(
-        c.id,
-        c.brand,
-        c.model,
-        c.slug,
-        c.year,
-        c.capacity,
-        c.transmission,
-        c.fuel,
-        c.price_per_day,
-        c.category,
-        c.description,
-        c.features,
-        c.image_url,
-        c.gallery,
-        c.status,
-        c.sort_order
+        car.id,
+        car.brand,
+        car.model,
+        car.plate_number,
+        car.slug,
+        car.year,
+        car.capacity,
+        car.transmission,
+        car.fuel,
+        car.price_per_day,
+        car.category,
+        car.description,
+        car.features,
+        car.image_url,
+        car.gallery,
+        car.status,
+        car.sort_order
       );
     }
   });
 
-  insertAllCars(initialCars);
+  insertCarsTransaction(initialCars);
 }
 
 export default db;

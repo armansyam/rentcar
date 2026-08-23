@@ -145,10 +145,17 @@ export default function CarDetailPage({
             <div className="lg:col-span-5 space-y-6">
               <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 card-shadow space-y-6">
                 <div>
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-[11px] font-bold text-slate-700 mb-2">
-                    <span>{car.category}</span>
-                    <span>•</span>
-                    <span>Tahun {car.year}</span>
+                  <div className="flex items-center gap-2 flex-wrap mb-2.5">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-[11px] font-bold text-slate-700">
+                      <span>{car.category}</span>
+                      <span>•</span>
+                      <span>Tahun {car.year}</span>
+                    </div>
+                    {car.plate_number && (
+                      <div className="inline-flex items-center px-2.5 py-0.5 rounded-md bg-slate-900 text-amber-300 font-mono text-xs font-extrabold border border-slate-700 tracking-wider shadow-xs">
+                        {car.plate_number}
+                      </div>
+                    )}
                   </div>
 
                   <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">

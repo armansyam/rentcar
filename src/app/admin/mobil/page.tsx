@@ -21,6 +21,7 @@ export default function AdminCarsPage() {
   // Form State
   const [brand, setBrand] = useState('');
   const [model, setModel] = useState('');
+  const [plateNumber, setPlateNumber] = useState('D 1234 AMS');
   const [slug, setSlug] = useState('');
   const [year, setYear] = useState<number>(2024);
   const [capacity, setCapacity] = useState<number>(7);
@@ -89,6 +90,7 @@ export default function AdminCarsPage() {
     setEditingCar(null);
     setBrand('');
     setModel('');
+    setPlateNumber('');
     setSlug('');
     setYear(2024);
     setCapacity(7);
@@ -108,6 +110,7 @@ export default function AdminCarsPage() {
     setEditingCar(car);
     setBrand(car.brand);
     setModel(car.model);
+    setPlateNumber(car.plate_number || 'D 1234 AMS');
     setSlug(car.slug);
     setYear(car.year);
     setCapacity(car.capacity);
@@ -133,6 +136,7 @@ export default function AdminCarsPage() {
     const payload = {
       brand,
       model,
+      plate_number: plateNumber.trim().toUpperCase() || 'D 1234 AMS',
       slug: generatedSlug,
       year,
       capacity,
@@ -262,7 +266,12 @@ export default function AdminCarsPage() {
                   </td>
                   <td className="px-5 py-3">
                     <div className="font-bold text-slate-900">{car.brand} {car.model}</div>
-                    <div className="text-slate-400 text-xs font-mono">/{car.slug}</div>
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                      <span className="inline-block bg-slate-900 text-amber-300 font-mono text-[10px] font-extrabold px-2 py-0.5 rounded border border-slate-700 shadow-xs tracking-wider">
+                        {car.plate_number || 'D 1234 AMS'}
+                      </span>
+                      <span className="text-slate-400 text-[11px] font-mono">/{car.slug}</span>
+                    </div>
                   </td>
                   <td className="px-5 py-3">
                     <span className="inline-block px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-semibold">
@@ -331,14 +340,14 @@ export default function AdminCarsPage() {
             </div>
 
             <form onSubmit={handleSaveCar} className="space-y-4 text-xs sm:text-sm">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Merek Mobil</label>
                   <input
                     type="text"
                     value={brand}
                     onChange={(e) => setBrand(e.target.value)}
-                    placeholder="Contoh: Toyota, Honda"
+                    placeholder="Contoh: Toyota"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800"
                     required
                   />
@@ -349,8 +358,19 @@ export default function AdminCarsPage() {
                     type="text"
                     value={model}
                     onChange={(e) => setModel(e.target.value)}
-                    placeholder="Contoh: Avanza, Innova Reborn"
+                    placeholder="Contoh: Avanza"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Nomor Plat (Nopol)</label>
+                  <input
+                    type="text"
+                    value={plateNumber}
+                    onChange={(e) => setPlateNumber(e.target.value)}
+                    placeholder="Contoh: D 1452 VNZ"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 font-mono font-bold uppercase"
                     required
                   />
                 </div>

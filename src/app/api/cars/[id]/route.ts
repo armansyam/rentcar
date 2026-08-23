@@ -41,6 +41,7 @@ export async function PUT(
     const {
       brand,
       model,
+      plate_number,
       slug,
       year,
       capacity,
@@ -58,7 +59,7 @@ export async function PUT(
 
     const update = db.prepare(`
       UPDATE cars
-      SET brand = ?, model = ?, slug = ?, year = ?, capacity = ?, transmission = ?, fuel = ?,
+      SET brand = ?, model = ?, plate_number = ?, slug = ?, year = ?, capacity = ?, transmission = ?, fuel = ?,
           price_per_day = ?, category = ?, description = ?, features = ?, image_url = ?,
           gallery = ?, status = ?, sort_order = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
@@ -67,6 +68,7 @@ export async function PUT(
     update.run(
       brand,
       model,
+      plate_number || 'D 1234 AMS',
       slug,
       Number(year) || 2024,
       Number(capacity) || 7,
