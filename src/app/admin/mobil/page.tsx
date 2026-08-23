@@ -34,6 +34,37 @@ export default function AdminCarsPage() {
   const [status, setStatus] = useState('active');
   const [sortOrder, setSortOrder] = useState<number>(1);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    setUploadError(null);
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.success) {
+        setImageUrl(data.url);
+      } else {
+        setUploadError(data.error || 'Gagal mengunggah foto');
+      }
+    } catch (err: any) {
+      setUploadError(err.message || 'Terjadi kesalahan jaringan');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const fetchCars = async () => {
     setLoading(true);
@@ -395,34 +426,105 @@ export default function AdminCarsPage() {
                 </div>
               </div>
 
-              {/* Preset Image Selection */}
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Pilih Gambar Preset atau Masukkan Path</label>
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-2">
-                  {presetImages.map((p, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => setImageUrl(p.url)}
-                      className={`p-1 rounded-lg border text-center ${
-                        imageUrl === p.url ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200 hover:bg-slate-50'
-                      }`}
-                    >
-                      <div className="w-full h-8 relative mb-1">
-                        <Image src={p.url} alt={p.label} fill className="object-contain" />
-                      </div>
-                      <span className="text-[10px] text-slate-600 block truncate">{p.label}</span>
-                    </button>
-                  ))}
+              {/* Foto Mobil: Direct Upload & Preset */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="block font-bold text-slate-700">Foto Mobil</label>
+                  <span className="text-[11px] text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                    Otomatis Kompres WebP + Sharpen
+                  </span>
                 </div>
-                <input
-                  type="text"
-                  value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
-                  placeholder="/images/cars/toyota-avanza.jpg"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 font-mono text-xs"
-                  required
-                />
+
+                {/* Upload & Preview Box */}
+                <div className="border-2 border-dashed border-slate-200 hover:border-brand-navy-light rounded-2xl p-4 bg-slate-50/70 transition-all">
+                  <div className="flex flex-col sm:flex-row items-center gap-4">
+                    {/* Live Image Preview */}
+                    <div className="w-36 h-24 sm:w-44 sm:h-28 rounded-xl bg-white border border-slate-200 overflow-hidden relative shrink-0 shadow-sm flex items-center justify-center">
+                      {imageUrl ? (
+                        <Image
+                          src={imageUrl}
+                          alt="Preview Mobil"
+                          fill
+                          className="object-contain p-1"
+                        />
+                      ) : (
+                        <CarIcon size={32} className="text-slate-300" />
+                      )}
+                      {uploading && (
+                        <div className="absolute inset-0 bg-brand-navy/70 backdrop-blur-xs flex flex-col items-center justify-center text-white text-xs font-bold gap-1">
+                          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          <span>Memproses WebP...</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Upload Controls */}
+                    <div className="flex-1 text-center sm:text-left space-y-2">
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        Unggah foto mobil dari galeri / komputer Anda (JPG, PNG, WebP). Sistem akan otomatis mengompresi dan mempertajam resolusi ke WebP ringan.
+                      </p>
+
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                      />
+
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        <button
+                          type="button"
+                          disabled={uploading}
+                          onClick={() => fileInputRef.current?.click()}
+                          className="px-4 py-2 rounded-xl bg-brand-navy hover:bg-brand-navy-light text-white text-xs font-bold transition-all shadow-sm active:scale-98 disabled:opacity-50 cursor-pointer"
+                        >
+                          {uploading ? 'Mengompres...' : 'Pilih & Upload Foto Baru'}
+                        </button>
+                        {imageUrl && (
+                          <span className="text-[11px] font-mono text-slate-500 truncate max-w-[200px]">
+                            {imageUrl.split('/').pop()}
+                          </span>
+                        )}
+                      </div>
+
+                      {uploadError && (
+                        <p className="text-xs font-semibold text-rose-600 mt-1">{uploadError}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Preset Options as secondary quick pick */}
+                <div>
+                  <span className="text-[11px] font-semibold text-slate-500 block mb-1.5">
+                    Atau gunakan preset bawaan:
+                  </span>
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                    {presetImages.map((p, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          setImageUrl(p.url);
+                          setUploadError(null);
+                        }}
+                        className={`p-1.5 rounded-xl border text-center transition-all ${
+                          imageUrl === p.url
+                            ? 'border-brand-navy bg-brand-navy/5 shadow-xs ring-1 ring-brand-navy'
+                            : 'border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="w-full h-8 relative mb-1">
+                          <Image src={p.url} alt={p.label} fill className="object-contain" />
+                        </div>
+                        <span className="text-[10px] text-slate-600 block truncate font-medium">
+                          {p.label}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               <div>
