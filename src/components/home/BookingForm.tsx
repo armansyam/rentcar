@@ -43,14 +43,23 @@ export default function BookingForm({
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Set default car
+  // Set default car & listen to global car selection events
   useEffect(() => {
     if (selectedCarId && cars.some((c) => c.id === selectedCarId)) {
       setCarId(selectedCarId);
     } else if (cars.length > 0 && !carId) {
       setCarId(cars[0].id);
     }
-  }, [selectedCarId, cars]);
+
+    const handleCarSelected = (e: any) => {
+      if (e.detail?.id) {
+        setCarId(e.detail.id);
+      }
+    };
+
+    window.addEventListener('rentcar:select-car', handleCarSelected);
+    return () => window.removeEventListener('rentcar:select-car', handleCarSelected);
+  }, [selectedCarId, cars, carId]);
 
   // Set default dates: tomorrow and 2 days after
   useEffect(() => {
