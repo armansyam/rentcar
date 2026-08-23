@@ -20,6 +20,13 @@ export async function PATCH(
       'odometer_end',
       'overtime_hours',
       'overtime_fee',
+      'fuel_charge',
+      'damage_charge',
+      'payment_method_dp',
+      'payment_method_final',
+      'payment_method_deposit',
+      'payment_status',
+      'deposit_status',
       'notes_admin',
       'actual_return_date',
     ];

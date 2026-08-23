@@ -58,6 +58,13 @@ db.exec(`
     odometer_end INTEGER DEFAULT 0,
     overtime_hours INTEGER DEFAULT 0,
     overtime_fee INTEGER DEFAULT 0,
+    fuel_charge INTEGER DEFAULT 0,
+    damage_charge INTEGER DEFAULT 0,
+    payment_method_dp TEXT DEFAULT 'Transfer BCA',
+    payment_method_final TEXT DEFAULT 'Transfer BCA',
+    payment_method_deposit TEXT DEFAULT 'Transfer BCA',
+    payment_status TEXT DEFAULT 'UNPAID', -- UNPAID, DP_PAID, FULLY_PAID
+    deposit_status TEXT DEFAULT 'HELD', -- HELD, DEDUCTED, REFUNDED
     notes_admin TEXT,
     actual_return_date TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -81,6 +88,13 @@ try {
     { name: 'odometer_end', type: 'INTEGER DEFAULT 0' },
     { name: 'overtime_hours', type: 'INTEGER DEFAULT 0' },
     { name: 'overtime_fee', type: 'INTEGER DEFAULT 0' },
+    { name: 'fuel_charge', type: 'INTEGER DEFAULT 0' },
+    { name: 'damage_charge', type: 'INTEGER DEFAULT 0' },
+    { name: 'payment_method_dp', type: "TEXT DEFAULT 'Transfer BCA'" },
+    { name: 'payment_method_final', type: "TEXT DEFAULT 'Transfer BCA'" },
+    { name: 'payment_method_deposit', type: "TEXT DEFAULT 'Transfer BCA'" },
+    { name: 'payment_status', type: "TEXT DEFAULT 'UNPAID'" },
+    { name: 'deposit_status', type: "TEXT DEFAULT 'HELD'" },
     { name: 'notes_admin', type: 'TEXT' },
     { name: 'actual_return_date', type: 'TEXT' },
   ];

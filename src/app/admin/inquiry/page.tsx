@@ -14,26 +14,48 @@ import {
 
 type TabType = 'inquiry' | 'booking' | 'active' | 'history';
 
+const PAYMENT_METHODS = [
+  'Transfer BCA',
+  'Transfer Mandiri',
+  'Transfer BRI',
+  'Transfer BNI',
+  'QRIS',
+  'Cash / Tunai',
+  'E-Wallet (GoPay/OVO/Dana)',
+];
+
 export default function AdminInquiriesPage() {
   const [inquiries, setInquiries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>('inquiry');
   const [selectedInquiry, setSelectedInquiry] = useState<any | null>(null);
+  const [copiedText, setCopiedText] = useState(false);
 
   // Modals
   const [confirmModalItem, setConfirmModalItem] = useState<any | null>(null);
   const [handoverModalItem, setHandoverModalItem] = useState<any | null>(null);
   const [returnModalItem, setReturnModalItem] = useState<any | null>(null);
 
-  // Form states for modals
+  // Form states for Modal 1 (Confirm DP)
   const [dpAmount, setDpAmount] = useState<number>(200000);
+  const [paymentMethodDp, setPaymentMethodDp] = useState<string>('Transfer BCA');
   const [totalPrice, setTotalPrice] = useState<number>(0);
+  const [paymentStatus, setPaymentStatus] = useState<string>('DP_PAID');
+
+  // Form states for Modal 2 (Handover & Deposit)
   const [depositAmount, setDepositAmount] = useState<number>(500000);
+  const [paymentMethodDeposit, setPaymentMethodDeposit] = useState<string>('Transfer BCA');
+  const [finalPaymentAmount, setFinalPaymentAmount] = useState<number>(0);
+  const [paymentMethodFinal, setPaymentMethodFinal] = useState<string>('Transfer BCA');
   const [odometerStart, setOdometerStart] = useState<number>(45000);
+
+  // Form states for Modal 3 (Return & Overtime/Deductions)
   const [odometerEnd, setOdometerEnd] = useState<number>(45350);
   const [overtimeHours, setOvertimeHours] = useState<number>(0);
   const [overtimeRatePerHour, setOvertimeRatePerHour] = useState<number>(50000);
-  const [deductions, setDeductions] = useState<number>(0);
+  const [fuelCharge, setFuelCharge] = useState<number>(0);
+  const [damageCharge, setDamageCharge] = useState<number>(0);
+  const [paymentMethodRefund, setPaymentMethodRefund] = useState<string>('Transfer BCA');
   const [adminNotes, setAdminNotes] = useState<string>('');
 
   const fetchInquiries = async () => {
@@ -84,11 +106,13 @@ export default function AdminInquiriesPage() {
     }
   };
 
-  // 1. Action: Convert Inquiry to Confirmed Booking
+  // 1. Action: Convert Inquiry to Confirmed Booking (DP)
   const openConfirmModal = (item: any) => {
     setConfirmModalItem(item);
     setDpAmount(item.dp_amount || 200000);
+    setPaymentMethodDp(item.payment_method_dp || 'Transfer BCA');
     setTotalPrice(item.total_price || item.duration_days * 350000);
+    setPaymentStatus('DP_PAID');
     setAdminNotes(item.notes_admin || 'DP telah diterima, verifikasi e-KTP & SIM A berhasil.');
   };
 
@@ -97,7 +121,9 @@ export default function AdminInquiriesPage() {
     await handleUpdate(confirmModalItem.id, {
       status: 'CONFIRMED',
       dp_amount: Number(dpAmount),
+      payment_method_dp: paymentMethodDp,
       total_price: Number(totalPrice),
+      payment_status: paymentStatus,
       notes_admin: adminNotes,
     });
     setConfirmModalItem(null);
@@ -108,6 +134,10 @@ export default function AdminInquiriesPage() {
   const openHandoverModal = (item: any) => {
     setHandoverModalItem(item);
     setDepositAmount(item.deposit_amount || 500000);
+    setPaymentMethodDeposit(item.payment_method_deposit || 'Transfer BCA');
+    const remaining = Math.max(0, (item.total_price || item.duration_days * 350000) - (item.dp_amount || 0));
+    setFinalPaymentAmount(remaining);
+    setPaymentMethodFinal(item.payment_method_final || 'Transfer BCA');
     setOdometerStart(item.odometer_start || 45000);
     setAdminNotes(item.notes_admin || 'Kunci & STNK diserahkan. Uang jaminan ditahan.');
   };
@@ -117,7 +147,11 @@ export default function AdminInquiriesPage() {
     await handleUpdate(handoverModalItem.id, {
       status: 'ACTIVE_RENTAL',
       deposit_amount: Number(depositAmount),
+      payment_method_deposit: paymentMethodDeposit,
+      payment_method_final: paymentMethodFinal,
+      payment_status: 'FULLY_PAID',
       odometer_start: Number(odometerStart),
+      deposit_status: 'HELD',
       notes_admin: adminNotes,
     });
     setHandoverModalItem(null);
@@ -130,13 +164,16 @@ export default function AdminInquiriesPage() {
     setOdometerEnd(item.odometer_end || (item.odometer_start ? item.odometer_start + 250 : 45250));
     setOvertimeHours(item.overtime_hours || 0);
     setOvertimeRatePerHour(50000);
-    setDeductions(0);
+    setFuelCharge(item.fuel_charge || 0);
+    setDamageCharge(item.damage_charge || 0);
+    setPaymentMethodRefund(item.payment_method_deposit || 'Transfer BCA');
     setAdminNotes('Mobil kembali dalam kondisi baik. Sisa uang jaminan telah ditransfer balik.');
   };
 
   const calculatedOvertimeFee = overtimeHours * overtimeRatePerHour;
   const initialDeposit = returnModalItem?.deposit_amount || 500000;
-  const refundDepositAmount = Math.max(0, initialDeposit - calculatedOvertimeFee - deductions);
+  const totalDeductions = calculatedOvertimeFee + fuelCharge + damageCharge;
+  const refundDepositAmount = Math.max(0, initialDeposit - totalDeductions);
 
   const submitReturn = async () => {
     if (!returnModalItem) return;
@@ -145,11 +182,40 @@ export default function AdminInquiriesPage() {
       odometer_end: Number(odometerEnd),
       overtime_hours: Number(overtimeHours),
       overtime_fee: Number(calculatedOvertimeFee),
+      fuel_charge: Number(fuelCharge),
+      damage_charge: Number(damageCharge),
+      deposit_status: refundDepositAmount > 0 ? 'REFUNDED' : 'DEDUCTED',
       notes_admin: adminNotes,
       actual_return_date: new Date().toLocaleDateString('id-ID'),
     });
     setReturnModalItem(null);
     setActiveTab('history');
+  };
+
+  // Helper to copy structured WA receipt
+  const copyInvoiceText = (item: any) => {
+    const text = `*RINCIAN TRANSAKSI SEWA MOBIL — RENTCAR*
+----------------------------------------
+📄 *No. Invoice*   : ${item.invoice_no}
+👤 *Nama Penyewa*  : ${item.customer_name}
+🚗 *Unit Kendaraan* : ${item.car_name}
+📅 *Jadwal Sewa*    : ${item.start_date} s/d ${item.end_date} (${item.duration_days} Hari)
+📍 *Titik Ambil*    : ${item.pickup_location}
+
+💰 *RINCIAN BIAYA & PEMBAYARAN:*
+• Total Sewa       : Rp ${(item.total_price || 0).toLocaleString('id-ID')}
+• Pembayaran DP    : Rp ${(item.dp_amount || 0).toLocaleString('id-ID')} (${item.payment_method_dp || 'Transfer'})
+• Status Bayar     : ${item.payment_status === 'FULLY_PAID' ? 'LUNAS' : item.payment_status === 'DP_PAID' ? 'DP DITERIMA' : 'BELUM BAYAR'}
+
+🛡️ *UANG JAMINAN (SECURITY DEPOSIT):*
+• Deposit Ditahan  : Rp ${(item.deposit_amount || 0).toLocaleString('id-ID')} (${item.payment_method_deposit || 'Transfer'})
+• Status Jaminan   : ${item.deposit_status === 'REFUNDED' ? 'SUDAH DI-REFUND' : item.deposit_status === 'DEDUCTED' ? 'DIPOTONG BIAYA' : 'DITAHAN SELAMA SEWA'}
+${item.overtime_fee > 0 ? `• Denda Overtime  : Rp ${item.overtime_fee.toLocaleString('id-ID')} (${item.overtime_hours} Jam)\n` : ''}${item.fuel_charge > 0 ? `• Charge Bensin   : Rp ${item.fuel_charge.toLocaleString('id-ID')}\n` : ''}${item.damage_charge > 0 ? `• Charge Klaim    : Rp ${item.damage_charge.toLocaleString('id-ID')}\n` : ''}
+Terima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
+
+    navigator.clipboard.writeText(text);
+    setCopiedText(true);
+    setTimeout(() => setCopiedText(false), 2500);
   };
 
   // Categorize inquiries per tab
@@ -205,14 +271,23 @@ export default function AdminInquiriesPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-          Manajemen Sewa & Inquiry
-        </h1>
-        <p className="text-xs sm:text-sm text-slate-500 mt-1">
-          Pantau seluruh alur transaksi: mulai dari calon penyewa yang bertanya, booking terkonfirmasi, mobil yang sedang jalan, hingga pengembalian unit.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+            Manajemen Sewa & Inquiry
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
+            Input pembayaran DP, pelunasan, uang jaminan deposit, kalkulasi denda overtime, dan kirim rincian ke WhatsApp customer.
+          </p>
+        </div>
       </div>
+
+      {copiedText && (
+        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2">
+          <CheckIcon size={16} className="text-emerald-600" />
+          <span>Teks Rincian Tagihan berhasil disalin! Tinggal Paste di chat WhatsApp customer.</span>
+        </div>
+      )}
 
       {/* 4-Stage Main Navigation Tabs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
@@ -264,7 +339,7 @@ export default function AdminInquiriesPage() {
           </div>
           <div className="font-extrabold text-sm sm:text-base">Booking Terjadwal</div>
           <p className={`text-[11px] mt-0.5 truncate ${activeTab === 'booking' ? 'text-purple-200' : 'text-slate-500'}`}>
-            Sudah DP & verifikasi KTP
+            DP Masuk & KTP terverifikasi
           </p>
         </button>
 
@@ -293,7 +368,7 @@ export default function AdminInquiriesPage() {
             {activeList.length > 0 && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />}
           </div>
           <p className={`text-[11px] mt-0.5 truncate ${activeTab === 'active' ? 'text-emerald-200' : 'text-slate-500'}`}>
-            Mobil di jalan & pantau jam kembali
+            Deposit ditahan & pantau jam
           </p>
         </button>
 
@@ -319,7 +394,7 @@ export default function AdminInquiriesPage() {
           </div>
           <div className="font-extrabold text-sm sm:text-base">Riwayat Selesai</div>
           <p className={`text-[11px] mt-0.5 truncate ${activeTab === 'history' ? 'text-slate-300' : 'text-slate-500'}`}>
-            Lunas, kembali, & batal
+            Lunas, deposit di-refund, & denda
           </p>
         </button>
       </div>
@@ -333,11 +408,12 @@ export default function AdminInquiriesPage() {
                 <th className="px-5 py-3.5">Invoice & Penyewa</th>
                 <th className="px-5 py-3.5">Unit Mobil</th>
                 <th className="px-5 py-3.5">Jadwal Sewa</th>
-                {activeTab === 'booking' && <th className="px-5 py-3.5">DP Masuk</th>}
-                {activeTab === 'active' && <th className="px-5 py-3.5">Deposit & KM Awal</th>}
-                {activeTab === 'history' && <th className="px-5 py-3.5">Denda & Kembali</th>}
+                {activeTab === 'inquiry' && <th className="px-5 py-3.5">Estimasi Biaya</th>}
+                {activeTab === 'booking' && <th className="px-5 py-3.5">DP & Metode Bayar</th>}
+                {activeTab === 'active' && <th className="px-5 py-3.5">Deposit Jaminan & KM</th>}
+                {activeTab === 'history' && <th className="px-5 py-3.5">Rincian Denda & Refund</th>}
                 <th className="px-5 py-3.5">Status</th>
-                <th className="px-5 py-3.5 text-right">Aksi Operasional</th>
+                <th className="px-5 py-3.5 text-right">Aksi Admin</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -383,14 +459,27 @@ export default function AdminInquiriesPage() {
                       </div>
                     </td>
 
+                    {/* Tab 1: Estimasi Biaya */}
+                    {activeTab === 'inquiry' && (
+                      <td className="px-5 py-4 text-xs">
+                        <div className="font-bold text-slate-900">
+                          Rp {(item.total_price || item.duration_days * 350000).toLocaleString('id-ID')}
+                        </div>
+                        <div className="text-slate-400 text-[11px]">Belum bayar DP</div>
+                      </td>
+                    )}
+
                     {/* Tab 2: DP Column */}
                     {activeTab === 'booking' && (
                       <td className="px-5 py-4 text-xs">
                         <div className="font-bold text-purple-700">
-                          DP: Rp {item.dp_amount ? item.dp_amount.toLocaleString('id-ID') : '200.000'}
+                          DP: Rp {(item.dp_amount || 200000).toLocaleString('id-ID')}
                         </div>
-                        <div className="text-slate-500">
-                          Total: Rp {item.total_price ? item.total_price.toLocaleString('id-ID') : '-'}
+                        <span className="inline-block px-2 py-0.5 rounded bg-purple-50 text-purple-700 text-[10px] font-semibold mt-0.5 border border-purple-200">
+                          {item.payment_method_dp || 'Transfer BCA'}
+                        </span>
+                        <div className="text-slate-500 text-[11px] mt-0.5">
+                          Total: Rp {(item.total_price || 0).toLocaleString('id-ID')}
                         </div>
                       </td>
                     )}
@@ -399,9 +488,12 @@ export default function AdminInquiriesPage() {
                     {activeTab === 'active' && (
                       <td className="px-5 py-4 text-xs">
                         <div className="font-bold text-emerald-700">
-                          Jaminan: Rp {item.deposit_amount ? item.deposit_amount.toLocaleString('id-ID') : '500.000'}
+                          Deposit: Rp {(item.deposit_amount || 500000).toLocaleString('id-ID')}
                         </div>
-                        <div className="text-slate-500">
+                        <span className="inline-block px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px] font-semibold mt-0.5 border border-emerald-200">
+                          {item.payment_method_deposit || 'Transfer BCA'}
+                        </span>
+                        <div className="text-slate-500 text-[11px] mt-0.5">
                           KM Awal: {item.odometer_start ? item.odometer_start.toLocaleString('id-ID') : '-'} KM
                         </div>
                       </td>
@@ -413,9 +505,12 @@ export default function AdminInquiriesPage() {
                         <div className="font-semibold text-slate-700">
                           {item.actual_return_date ? `Kembali: ${item.actual_return_date}` : 'Selesai'}
                         </div>
-                        {item.overtime_fee > 0 && (
-                          <div className="text-rose-600 font-bold">
-                            Denda Overtime: Rp {item.overtime_fee.toLocaleString('id-ID')}
+                        <div className="text-[11px] text-slate-500 mt-0.5">
+                          Deposit: <span className="font-semibold">{item.deposit_status === 'REFUNDED' ? 'Di-Refund' : 'Dipotong'}</span>
+                        </div>
+                        {(item.overtime_fee > 0 || item.fuel_charge > 0 || item.damage_charge > 0) && (
+                          <div className="text-rose-600 font-bold text-[11px] mt-0.5">
+                            Total Denda/Charge: Rp {((item.overtime_fee || 0) + (item.fuel_charge || 0) + (item.damage_charge || 0)).toLocaleString('id-ID')}
                           </div>
                         )}
                       </td>
@@ -429,7 +524,17 @@ export default function AdminInquiriesPage() {
                     {/* Operational Action Buttons */}
                     <td className="px-5 py-4 text-right">
                       <div className="flex items-center justify-end gap-1.5 flex-wrap">
-                        {/* WhatsApp Quick Link */}
+                        {/* Copy WA Breakdown Text */}
+                        <button
+                          type="button"
+                          onClick={() => copyInvoiceText(item)}
+                          className="p-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                          title="Salin Rincian Tagihan untuk WA"
+                        >
+                          <FileTextIcon size={16} />
+                        </button>
+
+                        {/* WhatsApp Direct Chat Link */}
                         <a
                           href={`https://wa.me/${item.customer_phone.replace(/\D/g, '')}?text=${encodeURIComponent(
                             `Halo Kak ${item.customer_name}, perihal pemesanan ${item.car_name} (${item.invoice_no}) di RentCar:`
@@ -447,9 +552,9 @@ export default function AdminInquiriesPage() {
                           <button
                             type="button"
                             onClick={() => openConfirmModal(item)}
-                            className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs transition-all shadow-sm"
+                            className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs transition-all shadow-sm cursor-pointer"
                           >
-                            Konfirmasi Booking (DP)
+                            Input DP & Konfirmasi
                           </button>
                         )}
 
@@ -458,9 +563,9 @@ export default function AdminInquiriesPage() {
                           <button
                             type="button"
                             onClick={() => openHandoverModal(item)}
-                            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-all shadow-sm"
+                            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-all shadow-sm cursor-pointer"
                           >
-                            Serah Terima Kunci
+                            Serah Terima & Jaminan
                           </button>
                         )}
 
@@ -469,9 +574,9 @@ export default function AdminInquiriesPage() {
                           <button
                             type="button"
                             onClick={() => openReturnModal(item)}
-                            className="px-3 py-1.5 rounded-xl bg-brand-navy hover:bg-brand-navy-light text-white font-bold text-xs transition-all shadow-sm"
+                            className="px-3 py-1.5 rounded-xl bg-brand-navy hover:bg-brand-navy-light text-white font-bold text-xs transition-all shadow-sm cursor-pointer"
                           >
-                            Mobil Kembali (Selesai)
+                            Hitung Denda & Selesai
                           </button>
                         )}
 
@@ -479,17 +584,17 @@ export default function AdminInquiriesPage() {
                         <button
                           type="button"
                           onClick={() => setSelectedInquiry(item)}
-                          className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+                          className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors"
                           title="Lihat Detail"
                         >
-                          <FileTextIcon size={16} />
+                          Detail
                         </button>
 
                         {/* Delete */}
                         <button
                           type="button"
                           onClick={() => handleDeleteInquiry(item.id, item.invoice_no)}
-                          className="p-2 rounded-xl bg-slate-100 hover:bg-rose-100 text-slate-500 hover:text-rose-600 transition-colors"
+                          className="p-2 rounded-xl bg-slate-100 hover:bg-rose-100 text-slate-400 hover:text-rose-600 transition-colors"
                           title="Hapus"
                         >
                           <TrashIcon size={16} />
@@ -505,7 +610,7 @@ export default function AdminInquiriesPage() {
       </div>
 
       {/* ========================================================================= */}
-      {/* MODAL 1: Konfirmasi Jadi Booking (Tahap 1 -> Tahap 2)                      */}
+      {/* MODAL 1: Input DP & Konfirmasi Booking (Tahap 1 -> Tahap 2)               */}
       {/* ========================================================================= */}
       {confirmModalItem && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
@@ -513,7 +618,7 @@ export default function AdminInquiriesPage() {
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
                 <h3 className="font-extrabold text-lg text-slate-900">
-                  Konfirmasi Booking & Terima DP
+                  Input DP & Konfirmasi Booking
                 </h3>
                 <p className="text-xs text-slate-500">
                   {confirmModalItem.invoice_no} — {confirmModalItem.customer_name} ({confirmModalItem.car_name})
@@ -521,40 +626,67 @@ export default function AdminInquiriesPage() {
               </div>
               <button
                 onClick={() => setConfirmModalItem(null)}
-                className="p-2 rounded-full hover:bg-slate-100 text-slate-400"
+                className="p-2 rounded-full hover:bg-slate-100 text-slate-400 cursor-pointer"
               >
                 <XIcon size={20} />
               </button>
             </div>
 
             <div className="space-y-3 text-xs sm:text-sm">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Nominal DP Diterima (Rp)</label>
-                <input
-                  type="number"
-                  value={dpAmount}
-                  onChange={(e) => setDpAmount(Number(e.target.value))}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-bold"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Nominal DP (Rp)</label>
+                  <input
+                    type="number"
+                    value={dpAmount}
+                    onChange={(e) => setDpAmount(Number(e.target.value))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Metode Pembayaran DP</label>
+                  <select
+                    value={paymentMethodDp}
+                    onChange={(e) => setPaymentMethodDp(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800"
+                  >
+                    {PAYMENT_METHODS.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Total Biaya Sewa (Rp)</label>
+                  <input
+                    type="number"
+                    value={totalPrice}
+                    onChange={(e) => setTotalPrice(Number(e.target.value))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Status Pembayaran</label>
+                  <select
+                    value={paymentStatus}
+                    onChange={(e) => setPaymentStatus(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800"
+                  >
+                    <option value="DP_PAID">DP Diterima (Belum Lunas)</option>
+                    <option value="FULLY_PAID">Lunas Penuh</option>
+                  </select>
+                </div>
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Total Biaya Sewa (Rp)</label>
-                <input
-                  type="number"
-                  value={totalPrice}
-                  onChange={(e) => setTotalPrice(Number(e.target.value))}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-bold"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Catatan Admin / Status Verifikasi KTP</label>
+                <label className="block font-bold text-slate-700 mb-1">Catatan Verifikasi KTP / Bukti Transfer</label>
                 <textarea
                   rows={2}
                   value={adminNotes}
                   onChange={(e) => setAdminNotes(e.target.value)}
-                  placeholder="Contoh: Foto e-KTP dan SIM A sudah diverifikasi. DP masuk via BCA."
+                  placeholder="Contoh: Bukti transfer BCA terverifikasi. KTP dan SIM A sudah dicek."
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800"
                 />
               </div>
@@ -564,16 +696,16 @@ export default function AdminInquiriesPage() {
               <button
                 type="button"
                 onClick={() => setConfirmModalItem(null)}
-                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
               >
                 Batal
               </button>
               <button
                 type="button"
                 onClick={submitConfirmBooking}
-                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-sm"
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-sm cursor-pointer"
               >
-                Simpan Sebagai Booking Terjadwal
+                Simpan & Jadikan Booking Terjadwal
               </button>
             </div>
           </div>
@@ -581,7 +713,7 @@ export default function AdminInquiriesPage() {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL 2: Serah Terima Kunci (Tahap 2 -> Tahap 3)                          */}
+      {/* MODAL 2: Serah Terima Kunci, Pelunasan & Jaminan (Tahap 2 -> Tahap 3)       */}
       {/* ========================================================================= */}
       {handoverModalItem && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
@@ -589,7 +721,7 @@ export default function AdminInquiriesPage() {
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
                 <h3 className="font-extrabold text-lg text-slate-900">
-                  Serah Terima Kunci & Mulai Sewa
+                  Serah Terima Kunci & Uang Jaminan
                 </h3>
                 <p className="text-xs text-slate-500">
                   {handoverModalItem.invoice_no} — {handoverModalItem.car_name} ({handoverModalItem.customer_name})
@@ -597,26 +729,61 @@ export default function AdminInquiriesPage() {
               </div>
               <button
                 onClick={() => setHandoverModalItem(null)}
-                className="p-2 rounded-full hover:bg-slate-100 text-slate-400"
+                className="p-2 rounded-full hover:bg-slate-100 text-slate-400 cursor-pointer"
               >
                 <XIcon size={20} />
               </button>
             </div>
 
             <div className="space-y-3 text-xs sm:text-sm">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Uang Jaminan / Security Deposit Ditahan (Rp)
-                </label>
-                <input
-                  type="number"
-                  value={depositAmount}
-                  onChange={(e) => setDepositAmount(Number(e.target.value))}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-bold"
-                />
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  Uang jaminan ini akan ditahan sampai mobil dikembalikan dalam kondisi aman.
-                </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Uang Jaminan / Deposit (Rp)
+                  </label>
+                  <input
+                    type="number"
+                    value={depositAmount}
+                    onChange={(e) => setDepositAmount(Number(e.target.value))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Metode Bayar Deposit</label>
+                  <select
+                    value={paymentMethodDeposit}
+                    onChange={(e) => setPaymentMethodDeposit(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800"
+                  >
+                    {PAYMENT_METHODS.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Pelunasan Sisa Sewa (Rp)</label>
+                  <input
+                    type="number"
+                    value={finalPaymentAmount}
+                    onChange={(e) => setFinalPaymentAmount(Number(e.target.value))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Metode Pelunasan</label>
+                  <select
+                    value={paymentMethodFinal}
+                    onChange={(e) => setPaymentMethodFinal(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800"
+                  >
+                    {PAYMENT_METHODS.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div>
@@ -645,14 +812,14 @@ export default function AdminInquiriesPage() {
               <button
                 type="button"
                 onClick={() => setHandoverModalItem(null)}
-                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
               >
                 Batal
               </button>
               <button
                 type="button"
                 onClick={submitHandover}
-                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm cursor-pointer"
               >
                 Mulai Sewa (Status: Sedang Disewa)
               </button>
@@ -662,7 +829,7 @@ export default function AdminInquiriesPage() {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL 3: Proses Pengembalian & Denda Overtime (Tahap 3 -> Tahap 4)         */}
+      {/* MODAL 3: Hitung Denda, Charge, & Selesai (Tahap 3 -> Tahap 4)             */}
       {/* ========================================================================= */}
       {returnModalItem && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
@@ -670,7 +837,7 @@ export default function AdminInquiriesPage() {
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
                 <h3 className="font-extrabold text-lg text-slate-900">
-                  Proses Pengembalian Mobil
+                  Pengembalian Mobil & Kalkulasi Denda
                 </h3>
                 <p className="text-xs text-slate-500">
                   {returnModalItem.invoice_no} — {returnModalItem.car_name} ({returnModalItem.customer_name})
@@ -678,7 +845,7 @@ export default function AdminInquiriesPage() {
               </div>
               <button
                 onClick={() => setReturnModalItem(null)}
-                className="p-2 rounded-full hover:bg-slate-100 text-slate-400"
+                className="p-2 rounded-full hover:bg-slate-100 text-slate-400 cursor-pointer"
               >
                 <XIcon size={20} />
               </button>
@@ -687,7 +854,7 @@ export default function AdminInquiriesPage() {
             <div className="space-y-3 text-xs sm:text-sm">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">KM Akhir</label>
+                  <label className="block font-bold text-slate-700 mb-1">KM Akhir Odometer</label>
                   <input
                     type="number"
                     value={odometerEnd}
@@ -706,28 +873,50 @@ export default function AdminInquiriesPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Tarif Denda / Jam (Rp)</label>
+                  <label className="block font-bold text-slate-700 mb-1 text-[11px]">Tarif Overtime/Jam</label>
                   <input
                     type="number"
                     value={overtimeRatePerHour}
                     onChange={(e) => setOvertimeRatePerHour(Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 text-xs"
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Potongan Lain (Bensin/Baret)</label>
+                  <label className="block font-bold text-slate-700 mb-1 text-[11px]">Charge Bensin (Rp)</label>
                   <input
                     type="number"
-                    value={deductions}
-                    onChange={(e) => setDeductions(Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900"
+                    value={fuelCharge}
+                    onChange={(e) => setFuelCharge(Number(e.target.value))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1 text-[11px]">Charge Baret/Klaim (Rp)</label>
+                  <input
+                    type="number"
+                    value={damageCharge}
+                    onChange={(e) => setDamageCharge(Number(e.target.value))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 text-xs"
                   />
                 </div>
               </div>
 
-              {/* Kalkulasi Ringkasan Deposit */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Metode Transfer Balik Refund Deposit</label>
+                <select
+                  value={paymentMethodRefund}
+                  onChange={(e) => setPaymentMethodRefund(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-slate-800"
+                >
+                  {PAYMENT_METHODS.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Kalkulasi Ringkasan Deposit & Denda */}
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1.5 text-xs">
                 <div className="flex justify-between text-slate-600">
                   <span>Deposit Awal Ditahan:</span>
@@ -739,10 +928,16 @@ export default function AdminInquiriesPage() {
                     <span>- Rp {calculatedOvertimeFee.toLocaleString('id-ID')}</span>
                   </div>
                 )}
-                {deductions > 0 && (
+                {fuelCharge > 0 && (
                   <div className="flex justify-between text-rose-600 font-semibold">
-                    <span>Potongan Lainnya:</span>
-                    <span>- Rp {deductions.toLocaleString('id-ID')}</span>
+                    <span>Potongan Bensin Kurang:</span>
+                    <span>- Rp {fuelCharge.toLocaleString('id-ID')}</span>
+                  </div>
+                )}
+                {damageCharge > 0 && (
+                  <div className="flex justify-between text-rose-600 font-semibold">
+                    <span>Potongan Kerusakan / Baret:</span>
+                    <span>- Rp {damageCharge.toLocaleString('id-ID')}</span>
                   </div>
                 )}
                 <div className="border-t border-slate-200 pt-1.5 flex justify-between font-extrabold text-emerald-800 text-sm">
@@ -766,14 +961,14 @@ export default function AdminInquiriesPage() {
               <button
                 type="button"
                 onClick={() => setReturnModalItem(null)}
-                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
               >
                 Batal
               </button>
               <button
                 type="button"
                 onClick={submitReturn}
-                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-brand-navy hover:bg-brand-navy-light text-white shadow-sm"
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-brand-navy hover:bg-brand-navy-light text-white shadow-sm cursor-pointer"
               >
                 Selesaikan Transaksi (Status: Selesai)
               </button>
@@ -783,30 +978,30 @@ export default function AdminInquiriesPage() {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL DETAIL LENGKAP                                                      */}
+      {/* MODAL DETAIL TRANSAKSI LENGKAP & KWITANSI                                 */}
       {/* ========================================================================= */}
       {selectedInquiry && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
                 <span className="text-xs font-mono font-bold text-slate-400">
                   {selectedInquiry.invoice_no}
                 </span>
                 <h3 className="font-extrabold text-lg text-slate-900">
-                  Detail Transaksi Sewa
+                  Detail Transaksi & Pembayaran
                 </h3>
               </div>
               <button
                 onClick={() => setSelectedInquiry(null)}
-                className="p-2 rounded-full hover:bg-slate-100 text-slate-400"
+                className="p-2 rounded-full hover:bg-slate-100 text-slate-400 cursor-pointer"
               >
                 <XIcon size={20} />
               </button>
             </div>
 
-            <div className="space-y-2.5 text-xs sm:text-sm">
-              <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-xl">
+            <div className="space-y-3 text-xs sm:text-sm">
+              <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-2xl border border-slate-100">
                 <div>
                   <span className="text-slate-500 block text-xs">Penyewa</span>
                   <span className="font-bold text-slate-900">{selectedInquiry.customer_name}</span>
@@ -825,9 +1020,52 @@ export default function AdminInquiriesPage() {
                 </div>
               </div>
 
-              <div>
-                <span className="text-slate-500 block text-xs">Lokasi Pengambilan:</span>
-                <span className="font-medium text-slate-800">{selectedInquiry.pickup_location}</span>
+              {/* Rincian Biaya & Metode Bayar */}
+              <div className="p-3.5 bg-purple-50/60 rounded-2xl border border-purple-100 space-y-1.5 text-xs">
+                <div className="font-bold text-purple-900 text-sm mb-1">Rincian Pembayaran Sewa</div>
+                <div className="flex justify-between text-slate-700">
+                  <span>Total Biaya Sewa:</span>
+                  <span className="font-bold">Rp {(selectedInquiry.total_price || 0).toLocaleString('id-ID')}</span>
+                </div>
+                <div className="flex justify-between text-slate-700">
+                  <span>DP Diterima ({selectedInquiry.payment_method_dp || 'Transfer'}):</span>
+                  <span className="font-bold">Rp {(selectedInquiry.dp_amount || 0).toLocaleString('id-ID')}</span>
+                </div>
+                <div className="flex justify-between text-purple-800 font-semibold pt-1 border-t border-purple-200/60">
+                  <span>Status Pembayaran:</span>
+                  <span className="uppercase">{selectedInquiry.payment_status || 'DP_PAID'}</span>
+                </div>
+              </div>
+
+              {/* Rincian Uang Jaminan & Denda */}
+              <div className="p-3.5 bg-emerald-50/60 rounded-2xl border border-emerald-100 space-y-1.5 text-xs">
+                <div className="font-bold text-emerald-900 text-sm mb-1">Uang Jaminan & Denda</div>
+                <div className="flex justify-between text-slate-700">
+                  <span>Deposit Ditahan ({selectedInquiry.payment_method_deposit || 'Transfer'}):</span>
+                  <span className="font-bold">Rp {(selectedInquiry.deposit_amount || 0).toLocaleString('id-ID')}</span>
+                </div>
+                {selectedInquiry.overtime_fee > 0 && (
+                  <div className="flex justify-between text-rose-600 font-semibold">
+                    <span>Denda Overtime ({selectedInquiry.overtime_hours} Jam):</span>
+                    <span>Rp {selectedInquiry.overtime_fee.toLocaleString('id-ID')}</span>
+                  </div>
+                )}
+                {selectedInquiry.fuel_charge > 0 && (
+                  <div className="flex justify-between text-rose-600 font-semibold">
+                    <span>Charge Bensin Kurang:</span>
+                    <span>Rp {selectedInquiry.fuel_charge.toLocaleString('id-ID')}</span>
+                  </div>
+                )}
+                {selectedInquiry.damage_charge > 0 && (
+                  <div className="flex justify-between text-rose-600 font-semibold">
+                    <span>Charge Baret / Klaim:</span>
+                    <span>Rp {selectedInquiry.damage_charge.toLocaleString('id-ID')}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-emerald-800 font-semibold pt-1 border-t border-emerald-200/60">
+                  <span>Status Deposit:</span>
+                  <span className="uppercase">{selectedInquiry.deposit_status || 'HELD'}</span>
+                </div>
               </div>
 
               {selectedInquiry.notes && (
@@ -849,11 +1087,20 @@ export default function AdminInquiriesPage() {
               )}
             </div>
 
-            <div className="pt-2 flex items-center justify-end">
+            <div className="pt-2 flex items-center justify-between gap-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => copyInvoiceText(selectedInquiry)}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 shadow-sm cursor-pointer"
+              >
+                <WhatsAppIcon size={14} />
+                <span>Salin Rincian untuk WA</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setSelectedInquiry(null)}
-                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-slate-900 text-white"
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-slate-900 text-white cursor-pointer"
               >
                 Tutup
               </button>
