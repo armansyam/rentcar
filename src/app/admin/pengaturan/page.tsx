@@ -6,17 +6,13 @@ import {
   MapPinIcon,
   ExternalLinkIcon,
   PhoneIcon,
-  MailIcon,
-  ClockIcon,
   GlobeIcon,
   SearchIcon,
   BuildingIcon,
   CreditCardIcon,
   InstagramIcon,
-  FileTextIcon,
-  LockIcon,
-  KeyIcon,
   ShieldCheckIcon,
+  KeyIcon,
   EyeIcon,
   EyeOffIcon,
   DatabaseIcon,
@@ -61,6 +57,7 @@ export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [originalSettings, setOriginalSettings] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [isClientMounted, setIsClientMounted] = useState(false);
   const [editingSection, setEditingSection] = useState<SectionType>(null);
   const [savingSection, setSavingSection] = useState<SectionType>(null);
   const [successToast, setSuccessToast] = useState<string | null>(null);
@@ -89,7 +86,6 @@ export default function AdminSettingsPage() {
 
   // Database Backup & Restore state
   const [dbInfo, setDbInfo] = useState<DatabaseInfo | null>(null);
-  const [loadingDb, setLoadingDb] = useState(false);
   const [dbActionLoading, setDbActionLoading] = useState<string | null>(null);
   const [dbMessage, setDbMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [restoreConfirmFile, setRestoreConfirmFile] = useState<string | null>(null);
@@ -98,26 +94,38 @@ export default function AdminSettingsPage() {
   const fetchDbInfo = async () => {
     try {
       const res = await fetch('/api/admin/database?action=info');
-      const data = await res.json();
-      if (data.success) {
-        setDbInfo(data.data);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setDbInfo(data.data);
+        }
       }
     } catch (_) {}
   };
 
   useEffect(() => {
+    setIsClientMounted(true);
+    let isMounted = true;
+
     fetch('/api/settings')
-      .then((res) => res.json())
+      .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (data.success) {
+        if (isMounted && data && data.success) {
           setSettings(data.data);
           setOriginalSettings(data.data);
           setAdminUsername(data.data.admin_username || 'admin');
         }
       })
-      .finally(() => setLoading(false));
+      .catch(() => {})
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
 
     fetchDbInfo();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleChange = (key: string, value: string) => {
@@ -270,7 +278,6 @@ export default function AdminSettingsPage() {
         setDbMessage({ type: 'success', text: data.message });
         setRestoreConfirmFile(null);
         fetchDbInfo();
-        // Refresh settings as well
         fetch('/api/settings').then((r) => r.json()).then((d) => {
           if (d.success) setSettings(d.data);
         });
@@ -332,7 +339,6 @@ export default function AdminSettingsPage() {
       if (data.success) {
         setDbMessage({ type: 'success', text: data.message });
         fetchDbInfo();
-        // Refresh active settings
         fetch('/api/settings').then((r) => r.json()).then((d) => {
           if (d.success) setSettings(d.data);
         });
@@ -1046,7 +1052,7 @@ export default function AdminSettingsPage() {
               </span>
             </div>
 
-            {/* Interactive Live Map Preview */}
+            {/* Interactive Live Map Preview (Mounted on Client) */}
             <div className="rounded-2xl overflow-hidden border border-slate-200 bg-slate-100">
               <div className="p-3 bg-slate-100/90 border-b border-slate-200 flex items-center justify-between text-xs">
                 <div className="flex items-center gap-1.5 text-slate-700 font-bold">
@@ -1065,13 +1071,15 @@ export default function AdminSettingsPage() {
                   </a>
                 )}
               </div>
-              <div className="h-56">
-                <iframe
-                  src={liveEmbedUrl}
-                  title="Google Maps"
-                  className="w-full h-full border-0"
-                  loading="lazy"
-                />
+              <div className="h-56 bg-slate-100">
+                {isClientMounted && (
+                  <iframe
+                    src={liveEmbedUrl}
+                    title="Google Maps"
+                    className="w-full h-full border-0"
+                    loading="lazy"
+                  />
+                )}
               </div>
             </div>
           </div>
@@ -1173,12 +1181,14 @@ export default function AdminSettingsPage() {
                 Pratinjau Peta Interaktif:
               </span>
               <div className="h-48 rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
-                <iframe
-                  src={liveEmbedUrl}
-                  title="Google Maps Preview"
-                  className="w-full h-full border-0"
-                  loading="lazy"
-                />
+                {isClientMounted && (
+                  <iframe
+                    src={liveEmbedUrl}
+                    title="Google Maps Preview"
+                    className="w-full h-full border-0"
+                    loading="lazy"
+                  />
+                )}
               </div>
             </div>
 
@@ -2056,7 +2066,7 @@ export default function AdminSettingsPage() {
               <span>Daftar Snapshot Cadangan di Server (<code>data/backups/</code>)</span>
             </span>
             <span className="text-[11px] text-slate-400 font-semibold">
-              {dbInfo?.backups.length || 0} file snapshot tersimpan
+              {dbInfo?.backups?.length || 0} file snapshot tersimpan
             </span>
           </div>
 
