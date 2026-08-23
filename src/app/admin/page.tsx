@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 export default function AdminOverviewPage() {
   const totalCars = (db.prepare('SELECT COUNT(*) as count FROM cars').get() as any).count;
   const activeCars = (db.prepare("SELECT COUNT(*) as count FROM cars WHERE status = 'active'").get() as any).count;
-  const newInquiries = (db.prepare("SELECT COUNT(*) as count FROM inquiries WHERE status IN ('NEW', 'CHECKING', 'AVAILABLE')").get() as any).count;
+  const newInquiries = (db.prepare("SELECT COUNT(*) as count FROM inquiries WHERE status = 'NEW'").get() as any).count;
   const confirmedBookings = (db.prepare("SELECT COUNT(*) as count FROM inquiries WHERE status = 'CONFIRMED'").get() as any).count;
   const activeRentals = (db.prepare("SELECT COUNT(*) as count FROM inquiries WHERE status = 'ACTIVE_RENTAL'").get() as any).count;
 
@@ -18,13 +18,10 @@ export default function AdminOverviewPage() {
 
   const statusColors: Record<string, string> = {
     NEW: 'bg-blue-100 text-blue-700 border-blue-200',
-    CHECKING: 'bg-amber-100 text-amber-700 border-amber-200',
-    AVAILABLE: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-    NOT_AVAILABLE: 'bg-rose-100 text-rose-700 border-rose-200',
     CONFIRMED: 'bg-purple-100 text-purple-700 border-purple-200',
     ACTIVE_RENTAL: 'bg-emerald-600 text-white border-emerald-700',
     COMPLETED: 'bg-slate-100 text-slate-700 border-slate-200',
-    CANCELLED: 'bg-gray-100 text-gray-500 border-gray-200',
+    CANCELLED: 'bg-rose-100 text-rose-600 border-rose-200',
   };
 
   const activeRentalsList = db.prepare("SELECT * FROM inquiries WHERE status = 'ACTIVE_RENTAL'").all() as any[];

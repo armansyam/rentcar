@@ -462,7 +462,7 @@ _Terima kasih telah mempercayakan perjalanan Anda kepada kami!_`;
   const getFilteredInquiries = () => {
     switch (activeTab) {
       case 'inquiry':
-        return inquiries.filter((i) => ['NEW', 'CHECKING', 'AVAILABLE'].includes(i.status));
+        return inquiries.filter((i) => i.status === 'NEW');
       case 'booking':
         return inquiries.filter((i) => i.status === 'CONFIRMED');
       case 'active':
@@ -477,7 +477,7 @@ _Terima kasih telah mempercayakan perjalanan Anda kepada kami!_`;
   const filteredInquiries = getFilteredInquiries();
 
   const tabCounts = {
-    inquiry: inquiries.filter((i) => ['NEW', 'CHECKING', 'AVAILABLE'].includes(i.status)).length,
+    inquiry: inquiries.filter((i) => i.status === 'NEW').length,
     booking: inquiries.filter((i) => i.status === 'CONFIRMED').length,
     active: inquiries.filter((i) => i.status === 'ACTIVE_RENTAL').length,
     history: inquiries.filter((i) => ['COMPLETED', 'CANCELLED'].includes(i.status)).length,
