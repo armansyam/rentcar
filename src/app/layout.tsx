@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { headers } from 'next/headers';
 import { Plus_Jakarta_Sans } from 'next/font/google';
 import Script from 'next/script';
 import db from '@/lib/db';
@@ -14,6 +15,11 @@ export const dynamic = 'force-dynamic';
 
 export async function generateMetadata(): Promise<Metadata> {
   try {
+    const headerList = headers();
+    const host = headerList.get('x-forwarded-host') || headerList.get('host') || '';
+    const proto = headerList.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https');
+    const autoDetectedUrl = host ? `${proto}://${host}` : 'http://localhost:3000';
+
     const rows = db.prepare('SELECT key, value FROM settings').all() as { key: string; value: string }[];
     const s: Record<string, string> = {};
     rows.forEach((r) => {
@@ -27,12 +33,16 @@ export async function generateMetadata(): Promise<Metadata> {
     const keywords = s.meta_keywords
       ? s.meta_keywords.split(',').map((k) => k.trim()).filter(Boolean)
       : ['rental mobil bandung', 'sewa mobil lepas kunci', 'rentcar bandung'];
-    const canonical = s.canonical_url || 'http://localhost:3000';
-    const ogImage = s.og_image || '/images/cars/hero-luxury-black-suv.jpg';
-    const robots = s.robots_index || 'index, follow';
-
+    
+    const canonical = s.canonical_url || autoDetectedUrl;
     const baseUrl = canonical.startsWith('http') ? canonical : `https://${canonical}`;
 
+    const rawOgImage = s.og_image || '/images/cars/hero-luxury-black-suv.jpg';
+    const absoluteOgImage = rawOgImage.startsWith('http')
+      ? rawOgImage
+      : `${baseUrl.replace(/\/$/, '')}${rawOgImage.startsWith('/') ? '' : '/'}${rawOgImage}`;
+
+    const robots = s.robots_index || 'index, follow';
     const faviconUrl = s.favicon_url || s.company_logo || '/favicon.png';
 
     return {
@@ -51,9 +61,22 @@ export async function generateMetadata(): Promise<Metadata> {
         description,
         url: baseUrl,
         siteName: s.og_site_name || s.company_name || 'RentCar',
-        images: [{ url: ogImage, width: 1200, height: 630 }],
+        images: [
+          {
+            url: absoluteOgImage,
+            width: 1200,
+            height: 630,
+            alt: title,
+          },
+        ],
         locale: 'id_ID',
         type: 'website',
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title,
+        description,
+        images: [absoluteOgImage],
       },
       verification: s.google_site_verification
         ? {
