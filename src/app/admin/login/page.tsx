@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, Suspense } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { CarIcon, LockIcon, EyeIcon, EyeOffIcon } from '@/components/ui/Icons';
 
@@ -8,11 +8,26 @@ function LoginFormContent() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [companyLogo, setCompanyLogo] = useState<string>('/images/logo.png');
+  const [companyName, setCompanyName] = useState<string>('RentCar');
+  const [logoError, setLogoError] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectUrl = searchParams.get('redirect') || '/admin';
+
+  useEffect(() => {
+    fetch('/api/settings')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.data) {
+          if (data.data.company_logo) setCompanyLogo(data.data.company_logo);
+          if (data.data.company_name) setCompanyName(data.data.company_name);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,14 +59,26 @@ function LoginFormContent() {
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8 sm:p-9 shadow-2xl text-white">
         <div className="text-center mb-8">
-          <div className="w-14 h-14 rounded-2xl bg-brand-navy-light text-white flex items-center justify-center mx-auto mb-3.5 shadow-lg border border-slate-700">
-            <CarIcon size={28} />
-          </div>
+          {companyLogo && !logoError ? (
+            <div className="h-16 max-w-[240px] mx-auto mb-4 flex items-center justify-center bg-white/5 p-2 rounded-2xl border border-slate-800 shadow-sm">
+              <img
+                src={companyLogo}
+                alt={companyName}
+                className="max-h-12 max-w-[210px] object-contain"
+                onError={() => setLogoError(true)}
+              />
+            </div>
+          ) : (
+            <div className="w-14 h-14 rounded-2xl bg-brand-navy-light text-white flex items-center justify-center mx-auto mb-3.5 shadow-lg border border-slate-700">
+              <CarIcon size={28} />
+            </div>
+          )}
+
           <h1 className="text-2xl font-black tracking-tight text-white">
             Admin Panel Login
           </h1>
           <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
-            Masuk untuk mengelola armada, pesanan sewa, dan pengaturan website.
+            Masuk untuk mengelola armada, pesanan sewa, dan pengaturan website {companyName}.
           </p>
         </div>
 
