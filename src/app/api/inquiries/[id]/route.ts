@@ -12,6 +12,15 @@ export async function PATCH(
     const body = await request.json();
 
     const allowedFields = [
+      'car_id',
+      'car_name',
+      'start_date',
+      'end_date',
+      'duration_days',
+      'destination',
+      'pickup_location',
+      'customer_name',
+      'customer_phone',
       'status',
       'dp_amount',
       'deposit_amount',

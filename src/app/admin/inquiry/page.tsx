@@ -105,14 +105,17 @@ export default function AdminInquiriesPage() {
 
   const handleUpdate = async (id: string, updates: Record<string, any>) => {
     try {
-      await fetch(`/api/inquiries/${id}`, {
+      const res = await fetch(`/api/inquiries/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
       });
-      fetchInquiries();
-      if (selectedInquiry && selectedInquiry.id === id) {
-        setSelectedInquiry({ ...selectedInquiry, ...updates });
+      const data = await res.json();
+      if (data.success) {
+        await fetchInquiries();
+        if (selectedInquiry && selectedInquiry.id === id) {
+          setSelectedInquiry((prev: any) => (prev ? { ...prev, ...updates } : null));
+        }
       }
     } catch (err) {
       console.error(err);
@@ -409,8 +412,15 @@ _Terima kasih telah mempercayakan perjalanan Anda kepada kami!_`;
         if (!isNaN(day) && monthIndex !== -1) {
           targetDate = new Date(year, monthIndex, day, 23, 59, 59);
         }
+      } else if (endDateStr.includes('-')) {
+        const parts = endDateStr.split('-');
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        const d = parseInt(parts[2], 10);
+        targetDate = new Date(y, m, d, 23, 59, 59);
       } else {
         targetDate = new Date(endDateStr);
+        targetDate.setHours(23, 59, 59, 999);
       }
 
       if (!targetDate || isNaN(targetDate.getTime())) {
@@ -418,12 +428,15 @@ _Terima kasih telah mempercayakan perjalanan Anda kepada kami!_`;
       }
 
       const now = new Date();
-      const diffMs = targetDate.getTime() - now.getTime();
-      const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+      // Compare calendar days
+      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+      const diffMs = targetDate.getTime() - todayEnd.getTime();
+      const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
 
       if (diffDays < 0) {
-        const overdueHours = Math.abs(Math.round(diffMs / (1000 * 60 * 60)));
-        return { status: 'OVERDUE', label: `⚠️ Overdue ${Math.abs(diffDays)} Hari`, daysDiff: diffDays, overdueHours };
+        const overdueDays = Math.abs(diffDays);
+        const overdueHours = Math.abs(Math.round((targetDate.getTime() - now.getTime()) / (1000 * 60 * 60)));
+        return { status: 'OVERDUE', label: `⚠️ Overdue ${overdueDays} Hari`, daysDiff: diffDays, overdueHours };
       } else if (diffDays === 0) {
         return { status: 'TODAY', label: '⏳ Kembali Hari Ini', daysDiff: 0, overdueHours: 0 };
       } else {
@@ -1612,10 +1625,14 @@ _Terima kasih telah mempercayakan perjalanan Anda kepada kami!_`;
                   </span>
                 </div>
                 <div className="flex justify-between font-bold border-t border-slate-200 pt-1.5">
-                  <span className="text-slate-700">Sisa Pembayaran Sewa Pokok:</span>
-                  <span className={selectedInquiry.payment_status === 'FULLY_PAID' ? 'text-emerald-700' : 'text-amber-700'}>
-                    {selectedInquiry.payment_status === 'FULLY_PAID'
-                      ? 'LUNAS'
+                  <span className="text-slate-700">Sisa Tagihan yang Wajib Dilunasi:</span>
+                  <span className={
+                    (selectedInquiry.total_price || 0) <= (selectedInquiry.dp_amount || 0)
+                      ? 'text-emerald-700'
+                      : 'text-amber-700 font-extrabold'
+                  }>
+                    {(selectedInquiry.total_price || 0) <= (selectedInquiry.dp_amount || 0)
+                      ? '✅ LUNAS'
                       : `Rp ${Math.max(0, (selectedInquiry.total_price || 0) - (selectedInquiry.dp_amount || 0)).toLocaleString('id-ID')}`}
                   </span>
                 </div>
