@@ -50,7 +50,16 @@ db.exec(`
     customer_name TEXT NOT NULL,
     customer_phone TEXT NOT NULL,
     notes TEXT,
-    status TEXT NOT NULL DEFAULT 'NEW', -- NEW, CHECKING, AVAILABLE, NOT_AVAILABLE, CONFIRMED, COMPLETED, CANCELLED
+    status TEXT NOT NULL DEFAULT 'NEW', -- NEW, CHECKING, AVAILABLE, CONFIRMED, ACTIVE_RENTAL, COMPLETED, CANCELLED
+    dp_amount INTEGER DEFAULT 0,
+    deposit_amount INTEGER DEFAULT 0,
+    total_price INTEGER DEFAULT 0,
+    odometer_start INTEGER DEFAULT 0,
+    odometer_end INTEGER DEFAULT 0,
+    overtime_hours INTEGER DEFAULT 0,
+    overtime_fee INTEGER DEFAULT 0,
+    notes_admin TEXT,
+    actual_return_date TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(car_id) REFERENCES cars(id)
   );
@@ -60,6 +69,34 @@ db.exec(`
     value TEXT NOT NULL
   );
 `);
+
+// Safe migrations for existing inquiries table columns
+try {
+  const existingCols = (db.prepare('PRAGMA table_info(inquiries)').all() as any[]).map((c) => c.name);
+  const newCols = [
+    { name: 'dp_amount', type: 'INTEGER DEFAULT 0' },
+    { name: 'deposit_amount', type: 'INTEGER DEFAULT 0' },
+    { name: 'total_price', type: 'INTEGER DEFAULT 0' },
+    { name: 'odometer_start', type: 'INTEGER DEFAULT 0' },
+    { name: 'odometer_end', type: 'INTEGER DEFAULT 0' },
+    { name: 'overtime_hours', type: 'INTEGER DEFAULT 0' },
+    { name: 'overtime_fee', type: 'INTEGER DEFAULT 0' },
+    { name: 'notes_admin', type: 'TEXT' },
+    { name: 'actual_return_date', type: 'TEXT' },
+  ];
+
+  for (const col of newCols) {
+    if (!existingCols.includes(col.name)) {
+      try {
+        db.exec(`ALTER TABLE inquiries ADD COLUMN ${col.name} ${col.type}`);
+      } catch (err) {
+        // column already exists
+      }
+    }
+  }
+} catch (e) {
+  // ignore
+}
 
 // Seed initial default settings if empty
 const settingsCount = db.prepare('SELECT COUNT(*) as count FROM settings').get() as { count: number };

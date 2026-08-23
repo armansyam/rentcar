@@ -30,7 +30,7 @@ export default function AdminLayout({
   const navItems = [
     { name: 'Dashboard', href: '/admin', icon: HomeIcon, exact: true },
     { name: 'Manajemen Mobil', href: '/admin/mobil', icon: CarIcon, exact: false },
-    { name: 'Log Inquiry', href: '/admin/inquiry', icon: FileTextIcon, exact: false },
+    { name: 'Sewa & Inquiry', href: '/admin/inquiry', icon: FileTextIcon, exact: false },
     { name: 'Kelola Konten', href: '/admin/konten', icon: FileTextIcon, exact: false },
     { name: 'Pengaturan & SEO', href: '/admin/pengaturan', icon: HomeIcon, exact: false },
   ];

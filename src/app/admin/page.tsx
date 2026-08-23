@@ -8,8 +8,9 @@ export const dynamic = 'force-dynamic';
 export default function AdminOverviewPage() {
   const totalCars = (db.prepare('SELECT COUNT(*) as count FROM cars').get() as any).count;
   const activeCars = (db.prepare("SELECT COUNT(*) as count FROM cars WHERE status = 'active'").get() as any).count;
-  const totalInquiries = (db.prepare('SELECT COUNT(*) as count FROM inquiries').get() as any).count;
-  const newInquiries = (db.prepare("SELECT COUNT(*) as count FROM inquiries WHERE status = 'NEW'").get() as any).count;
+  const newInquiries = (db.prepare("SELECT COUNT(*) as count FROM inquiries WHERE status IN ('NEW', 'CHECKING', 'AVAILABLE')").get() as any).count;
+  const confirmedBookings = (db.prepare("SELECT COUNT(*) as count FROM inquiries WHERE status = 'CONFIRMED'").get() as any).count;
+  const activeRentals = (db.prepare("SELECT COUNT(*) as count FROM inquiries WHERE status = 'ACTIVE_RENTAL'").get() as any).count;
 
   const recentInquiries = db
     .prepare('SELECT * FROM inquiries ORDER BY created_at DESC LIMIT 6')
@@ -21,6 +22,7 @@ export default function AdminOverviewPage() {
     AVAILABLE: 'bg-emerald-100 text-emerald-700 border-emerald-200',
     NOT_AVAILABLE: 'bg-rose-100 text-rose-700 border-rose-200',
     CONFIRMED: 'bg-purple-100 text-purple-700 border-purple-200',
+    ACTIVE_RENTAL: 'bg-emerald-600 text-white border-emerald-700',
     COMPLETED: 'bg-slate-100 text-slate-700 border-slate-200',
     CANCELLED: 'bg-gray-100 text-gray-500 border-gray-200',
   };
@@ -34,7 +36,7 @@ export default function AdminOverviewPage() {
             Dashboard Utama
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Ringkasan performa inquiry dan status operasional armada rental.
+            Ringkasan performa inquiry, booking terjadwal, dan pemantauan mobil yang sedang disewa.
           </p>
         </div>
 
@@ -49,6 +51,7 @@ export default function AdminOverviewPage() {
 
       {/* 4 Overview Statistics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        {/* Card 1: Total Armada */}
         <div className="bg-white rounded-2xl p-5 border border-slate-200 card-shadow">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
@@ -62,16 +65,17 @@ export default function AdminOverviewPage() {
             {totalCars}
           </p>
           <span className="text-[11px] font-medium text-emerald-600 mt-1 block">
-            {activeCars} Mobil Aktif di Website
+            {activeCars} Unit Siap Disewa
           </span>
         </div>
 
+        {/* Card 2: Tahap 1 Inquiry Masuk */}
         <div className="bg-white rounded-2xl p-5 border border-slate-200 card-shadow">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              Inquiry Baru
+              Inquiry Masuk
             </span>
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
               <FileTextIcon size={18} />
             </div>
           </div>
@@ -79,41 +83,43 @@ export default function AdminOverviewPage() {
             {newInquiries}
           </p>
           <span className="text-[11px] font-medium text-slate-500 mt-1 block">
-            Menunggu verifikasi admin
+            Tanya ketersediaan & negosiasi
           </span>
         </div>
 
+        {/* Card 3: Tahap 2 Booking Terjadwal */}
         <div className="bg-white rounded-2xl p-5 border border-slate-200 card-shadow">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              Total Inquiry
+              Booking Terjadwal
             </span>
             <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
               <WhatsAppIcon size={18} />
             </div>
           </div>
           <p className="text-2xl sm:text-3xl font-black text-slate-900 mt-3">
-            {totalInquiries}
+            {confirmedBookings}
           </p>
-          <span className="text-[11px] font-medium text-slate-500 mt-1 block">
-            Masuk melalui website
+          <span className="text-[11px] font-medium text-purple-600 mt-1 block font-semibold">
+            Sudah DP & verifikasi KTP
           </span>
         </div>
 
+        {/* Card 4: Tahap 3 Sedang Disewa (Aktif) */}
         <div className="bg-white rounded-2xl p-5 border border-slate-200 card-shadow">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              Status Sistem
+              Sedang Disewa (Aktif)
             </span>
             <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
             </div>
           </div>
-          <p className="text-lg font-bold text-slate-900 mt-3">
-            Online & Aktif
+          <p className="text-2xl sm:text-3xl font-black text-emerald-700 mt-3">
+            {activeRentals}
           </p>
-          <span className="text-[11px] font-medium text-slate-500 mt-1 block">
-            WhatsApp Integration Ready
+          <span className="text-[11px] font-medium text-emerald-600 mt-1 block font-semibold">
+            Mobil di jalan & pantau jam kembali
           </span>
         </div>
       </div>

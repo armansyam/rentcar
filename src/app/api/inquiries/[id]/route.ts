@@ -10,14 +10,39 @@ export async function PATCH(
   try {
     const { id } = params;
     const body = await request.json();
-    const { status } = body;
 
-    if (!status) {
-      return NextResponse.json({ success: false, error: 'Status tidak boleh kosong' }, { status: 400 });
+    const allowedFields = [
+      'status',
+      'dp_amount',
+      'deposit_amount',
+      'total_price',
+      'odometer_start',
+      'odometer_end',
+      'overtime_hours',
+      'overtime_fee',
+      'notes_admin',
+      'actual_return_date',
+    ];
+
+    const updates: string[] = [];
+    const values: any[] = [];
+
+    for (const field of allowedFields) {
+      if (body[field] !== undefined) {
+        updates.push(`${field} = ?`);
+        values.push(body[field]);
+      }
     }
 
-    db.prepare('UPDATE inquiries SET status = ? WHERE id = ?').run(status, id);
-    return NextResponse.json({ success: true, message: 'Status inquiry berhasil diperbarui' });
+    if (updates.length === 0) {
+      return NextResponse.json({ success: false, error: 'Tidak ada field yang diperbarui' }, { status: 400 });
+    }
+
+    values.push(id);
+    const sql = `UPDATE inquiries SET ${updates.join(', ')} WHERE id = ?`;
+    db.prepare(sql).run(...values);
+
+    return NextResponse.json({ success: true, message: 'Data sewa / inquiry berhasil diperbarui' });
   } catch (error: any) {
     console.error('Error updating inquiry status:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
