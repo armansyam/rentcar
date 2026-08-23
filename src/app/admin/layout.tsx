@@ -11,6 +11,7 @@ import {
   MenuIcon,
   XIcon,
   ExternalLinkIcon,
+  SettingsIcon,
 } from '@/components/ui/Icons';
 
 export default function AdminLayout({
@@ -43,10 +44,10 @@ export default function AdminLayout({
 
   const navItems = [
     { name: 'Dashboard', href: '/admin', icon: HomeIcon, exact: true },
-    { name: 'Manajemen Mobil', href: '/admin/mobil', icon: CarIcon, exact: false },
     { name: 'Sewa & Inquiry', href: '/admin/inquiry', icon: FileTextIcon, exact: false },
+    { name: 'Manajemen Mobil', href: '/admin/mobil', icon: CarIcon, exact: false },
     { name: 'Kelola Konten', href: '/admin/konten', icon: FileTextIcon, exact: false },
-    { name: 'Pengaturan & SEO', href: '/admin/pengaturan', icon: HomeIcon, exact: false },
+    { name: 'Pengaturan & SEO', href: '/admin/pengaturan', icon: SettingsIcon, exact: false },
   ];
 
   const handleLogout = async () => {
