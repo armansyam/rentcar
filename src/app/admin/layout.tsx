@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -44,8 +45,8 @@ export default function AdminLayout({
       {/* Mobile Topbar */}
       <div className="md:hidden bg-brand-navy text-white px-4 py-3 flex items-center justify-between shadow-sm sticky top-0 z-50">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-white">
-            <CarIcon size={18} />
+          <div className="w-8 h-8 rounded-lg bg-white/10 relative overflow-hidden shrink-0">
+            <Image src="/images/logo-icon.png" alt="Logo" fill className="object-contain" />
           </div>
           <span className="font-bold text-sm tracking-tight">Admin RentCar</span>
         </div>
@@ -66,8 +67,8 @@ export default function AdminLayout({
         <div className="space-y-6">
           {/* Brand Header */}
           <div className="flex items-center gap-3 px-2 py-2">
-            <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-white shadow-sm">
-              <CarIcon size={22} />
+            <div className="w-10 h-10 rounded-xl bg-white/10 relative overflow-hidden shrink-0">
+              <Image src="/images/logo-icon.png" alt="RentCar" fill className="object-contain p-1" />
             </div>
             <div>
               <span className="font-extrabold text-base tracking-tight text-white block">

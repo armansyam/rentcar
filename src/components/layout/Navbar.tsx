@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { CarIcon, MenuIcon, XIcon } from '@/components/ui/Icons';
@@ -44,16 +45,14 @@ export default function Navbar({
         <div className="flex items-center justify-between h-20">
           {/* Brand Logo */}
           <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-xl bg-brand-navy flex items-center justify-center text-white transition-transform group-hover:scale-105 shadow-sm">
-              <CarIcon size={22} className="text-white" />
-            </div>
-            <div className="flex flex-col">
-              <span className="font-extrabold text-xl tracking-tight text-brand-navy leading-none font-sans">
-                {companyName}
-              </span>
-              <span className="text-[11px] font-medium text-slate-500 tracking-normal mt-0.5">
-                {tagline}
-              </span>
+            <div className="relative h-12 w-44 sm:w-52">
+              <Image
+                src="/images/logo.png"
+                alt="RentCar - Sewa Mobil Terpercaya"
+                fill
+                priority
+                className="object-contain object-left"
+              />
             </div>
           </Link>
 

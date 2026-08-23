@@ -15,6 +15,11 @@ export const metadata: Metadata = {
     'rentcar bandung',
   ],
   authors: [{ name: 'RentCar Team' }],
+  icons: {
+    icon: '/favicon.png',
+    shortcut: '/favicon.png',
+    apple: '/apple-touch-icon.png',
+  },
 };
 
 export const viewport: Viewport = {
