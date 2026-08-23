@@ -27,6 +27,7 @@ const PAYMENT_METHODS = [
 
 export default function AdminInquiriesPage() {
   const [inquiries, setInquiries] = useState<any[]>([]);
+  const [carsList, setCarsList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>('inquiry');
   const [selectedInquiry, setSelectedInquiry] = useState<any | null>(null);
@@ -36,6 +37,7 @@ export default function AdminInquiriesPage() {
   const [confirmModalItem, setConfirmModalItem] = useState<any | null>(null);
   const [handoverModalItem, setHandoverModalItem] = useState<any | null>(null);
   const [returnModalItem, setReturnModalItem] = useState<any | null>(null);
+  const [extendModalItem, setExtendModalItem] = useState<any | null>(null);
 
   // Form states for Modal 1 (Confirm DP)
   const [dpAmount, setDpAmount] = useState<number>(200000);
@@ -43,7 +45,9 @@ export default function AdminInquiriesPage() {
   const [totalPrice, setTotalPrice] = useState<number>(0);
   const [paymentStatus, setPaymentStatus] = useState<string>('DP_PAID');
 
-  // Form states for Modal 2 (Handover & Pelunasan)
+  // Form states for Modal 2 (Handover & Penugasan Unit Fisik)
+  const [handoverCarId, setHandoverCarId] = useState<string>('');
+  const [handoverPaymentOption, setHandoverPaymentOption] = useState<'PAY_ON_RETURN' | 'PAY_NOW'>('PAY_ON_RETURN');
   const [finalPaymentAmount, setFinalPaymentAmount] = useState<number>(0);
   const [paymentMethodFinal, setPaymentMethodFinal] = useState<string>('Transfer BCA');
   const [odometerStart, setOdometerStart] = useState<number>(45000);
@@ -54,7 +58,11 @@ export default function AdminInquiriesPage() {
   const [overtimeRatePerHour, setOvertimeRatePerHour] = useState<number>(50000);
   const [fuelCharge, setFuelCharge] = useState<number>(0);
   const [damageCharge, setDamageCharge] = useState<number>(0);
+  const [paymentMethodReturn, setPaymentMethodReturn] = useState<string>('Cash / Tunai');
   const [adminNotes, setAdminNotes] = useState<string>('');
+
+  // Form states for Extend / Reschedule Modal
+  const [extendDays, setExtendDays] = useState<number>(1);
 
   const fetchInquiries = async () => {
     setLoading(true);
@@ -71,8 +79,21 @@ export default function AdminInquiriesPage() {
     }
   };
 
+  const fetchCars = async () => {
+    try {
+      const res = await fetch('/api/cars');
+      const data = await res.json();
+      if (data.success) {
+        setCarsList(data.data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
     fetchInquiries();
+    fetchCars();
   }, []);
 
   const handleUpdate = async (id: string, updates: Record<string, any>) => {
@@ -128,34 +149,66 @@ export default function AdminInquiriesPage() {
     setActiveTab('booking');
   };
 
-  // 2. Action: Handover car (Mulai Sewa / Pelunasan Sisa)
+  // 2. Action: Handover car (Penyerahan Kunci & Penugasan Unit Mobil)
   const openHandoverModal = (item: any) => {
     setHandoverModalItem(item);
-    const remaining = Math.max(0, (item.total_price || item.duration_days * 350000) - (item.dp_amount || 0));
+    // Find matching car in carsList or fallback to first
+    const matchedCar =
+      carsList.find((c) => c.id === item.car_id) ||
+      carsList.find((c) => item.car_name && item.car_name.toLowerCase().includes(c.model.toLowerCase())) ||
+      carsList[0];
+
+    const carIdToSet = matchedCar ? matchedCar.id : item.car_id || '';
+    setHandoverCarId(carIdToSet);
+
+    const pricePerDay = matchedCar ? matchedCar.price_per_day : 350000;
+    const calculatedTotal = item.total_price || item.duration_days * pricePerDay;
+    const remaining = Math.max(0, calculatedTotal - (item.dp_amount || 0));
+
     setFinalPaymentAmount(remaining);
+    setHandoverPaymentOption('PAY_ON_RETURN');
     setPaymentMethodFinal(item.payment_method_final || 'Transfer BCA');
     setOdometerStart(item.odometer_start || 45000);
-    setAdminNotes(item.notes_admin || 'Kunci & STNK diserahkan. Sisa pembayaran sewa telah dilunasi.');
+    setAdminNotes(item.notes_admin || 'Kunci & STNK diserahkan. Unit mobil fisik siap jalan.');
   };
 
   const submitHandover = async () => {
     if (!handoverModalItem) return;
-    await handleUpdate(handoverModalItem.id, {
+
+    const selectedCarObj = carsList.find((c) => c.id === handoverCarId);
+    const updatedCarName = selectedCarObj
+      ? `${selectedCarObj.brand} ${selectedCarObj.model} (${selectedCarObj.plate_number || 'Tersedia'})`
+      : handoverModalItem.car_name;
+    const updatedTotalPrice = selectedCarObj
+      ? handoverModalItem.duration_days * selectedCarObj.price_per_day
+      : handoverModalItem.total_price;
+
+    const updates: Record<string, any> = {
       status: 'ACTIVE_RENTAL',
-      payment_method_final: paymentMethodFinal,
-      payment_status: 'FULLY_PAID',
+      car_id: handoverCarId,
+      car_name: updatedCarName,
+      total_price: updatedTotalPrice,
       odometer_start: Number(odometerStart),
       notes_admin: adminNotes,
-    });
+    };
+
+    if (handoverPaymentOption === 'PAY_NOW') {
+      updates.payment_status = 'FULLY_PAID';
+      updates.payment_method_final = paymentMethodFinal;
+    } else {
+      updates.payment_status = 'DP_PAID';
+    }
+
+    await handleUpdate(handoverModalItem.id, updates);
     setHandoverModalItem(null);
     setActiveTab('active');
   };
 
-  // 3. Action: Return car (Pengembalian / Selesai)
+  // 3. Action: Return car (Pengembalian / Pelunasan Akhir)
   const openReturnModal = (item: any) => {
     setReturnModalItem(item);
     setOdometerEnd(item.odometer_end || (item.odometer_start ? item.odometer_start + 250 : 45250));
-    
+
     // Auto-calculate suggested overtime hours if past due date
     const timeStatus = getRentalTimeStatus(item.end_date);
     const suggestedOvertime = timeStatus.status === 'OVERDUE' ? timeStatus.overdueHours : (item.overtime_hours || 0);
@@ -163,6 +216,7 @@ export default function AdminInquiriesPage() {
     setOvertimeRatePerHour(50000);
     setFuelCharge(item.fuel_charge || 0);
     setDamageCharge(item.damage_charge || 0);
+    setPaymentMethodReturn('Cash / Tunai');
     setAdminNotes(
       timeStatus.status === 'OVERDUE'
         ? `Mobil terlambat ${Math.abs(timeStatus.daysDiff)} hari dari jadwal sewa. Denda keterlambatan telah dicatat.`
@@ -172,11 +226,18 @@ export default function AdminInquiriesPage() {
 
   const calculatedOvertimeFee = overtimeHours * overtimeRatePerHour;
   const totalExtraCharges = calculatedOvertimeFee + fuelCharge + damageCharge;
+  const remainingUnpaidRent =
+    returnModalItem && returnModalItem.payment_status !== 'FULLY_PAID'
+      ? Math.max(0, (returnModalItem.total_price || 0) - (returnModalItem.dp_amount || 0))
+      : 0;
+  const grandTotalDue = remainingUnpaidRent + totalExtraCharges;
 
   const submitReturn = async () => {
     if (!returnModalItem) return;
     await handleUpdate(returnModalItem.id, {
       status: 'COMPLETED',
+      payment_status: 'FULLY_PAID',
+      payment_method_final: paymentMethodReturn,
       odometer_end: Number(odometerEnd),
       overtime_hours: Number(overtimeHours),
       overtime_fee: Number(calculatedOvertimeFee),
@@ -189,6 +250,30 @@ export default function AdminInquiriesPage() {
     setActiveTab('history');
   };
 
+  // 4. Action: Extend / Reschedule Rental
+  const openExtendModal = (item: any) => {
+    setExtendModalItem(item);
+    setExtendDays(1);
+  };
+
+  const submitExtendRental = async () => {
+    if (!extendModalItem) return;
+    const addedDays = Number(extendDays) || 1;
+    const currentDuration = Number(extendModalItem.duration_days) || 1;
+    const newDuration = currentDuration + addedDays;
+
+    // Calculate price per day
+    const pricePerDay = Math.round((extendModalItem.total_price || 350000) / currentDuration) || 350000;
+    const newTotalPrice = (extendModalItem.total_price || 0) + addedDays * pricePerDay;
+
+    await handleUpdate(extendModalItem.id, {
+      duration_days: newDuration,
+      total_price: newTotalPrice,
+      notes_admin: `${extendModalItem.notes_admin || ''} [Perpanjang sewa +${addedDays} hari pada ${new Date().toLocaleDateString('id-ID')}]`.trim(),
+    });
+    setExtendModalItem(null);
+  };
+
   // Helper to copy structured WA receipt
   const copyInvoiceText = (item: any) => {
     const totalSewa = item.total_price || 0;
@@ -198,353 +283,316 @@ export default function AdminInquiriesPage() {
 
     let text = `*RINCIAN TRANSAKSI SEWA MOBIL — RENTCAR*
 ----------------------------------------
-📄 *No. Invoice*   : ${item.invoice_no}
-👤 *Nama Penyewa*  : ${item.customer_name}
-🚗 *Unit Kendaraan* : ${item.car_name}
-📅 *Jadwal Sewa*    : ${item.start_date} s/d ${item.end_date} (${item.duration_days} Hari)
-📍 *Titik Ambil*    : ${item.pickup_location}
+No. Invoice : *${item.invoice_no}*
+Nama        : ${item.customer_name}
+No. HP      : ${item.customer_phone}
+Armada      : *${item.car_name}*
+Jadwal      : ${item.start_date} s/d ${item.end_date} (${item.duration_days} Hari)
+Tujuan      : ${item.destination || 'Dalam Kota'}
+----------------------------------------
+*1. RINCIAN BIAYA SEWA:*
+• Total Biaya Sewa  : Rp ${totalSewa.toLocaleString('id-ID')}
+• DP Masuk          : Rp ${dpMasuk.toLocaleString('id-ID')} (${item.payment_method_dp || 'Transfer'})
+• Sisa Pembayaran   : Rp ${sisaSewa.toLocaleString('id-ID')} (${item.payment_status === 'FULLY_PAID' ? 'LUNAS' : 'Belum Lunas'})
+`;
 
-💰 *RINCIAN PEMBAYARAN:*
-• Total Biaya Sewa : Rp ${totalSewa.toLocaleString('id-ID')}
-• Pembayaran DP    : Rp ${dpMasuk.toLocaleString('id-ID')} (${item.payment_method_dp || 'Transfer'})
-• Sisa Pelunasan   : Rp ${sisaSewa.toLocaleString('id-ID')} (${item.payment_status === 'FULLY_PAID' ? 'LUNAS' : 'Dibayar saat serah terima kunci'})
-• Status Bayar     : ${item.payment_status === 'FULLY_PAID' ? '✅ LUNAS PENUH' : '⏳ DP DITERIMA'}`;
-
-    if (totalDenda > 0) {
-      text += `\n\n⚠️ *TAGIHAN BIAYA TAMBAHAN (DENDA/CHARGE):*
-${item.overtime_fee > 0 ? `• Denda Overtime (${item.overtime_hours} Jam) : Rp ${item.overtime_fee.toLocaleString('id-ID')}\n` : ''}${item.fuel_charge > 0 ? `• Charge Kurang Bensin : Rp ${item.fuel_charge.toLocaleString('id-ID')}\n` : ''}${item.damage_charge > 0 ? `• Charge Klaim Kerusakan : Rp ${item.damage_charge.toLocaleString('id-ID')}\n` : ''}👉 *Total Tagihan Tambahan : Rp ${totalDenda.toLocaleString('id-ID')}*`;
+    if (item.odometer_start || item.odometer_end) {
+      text += `\n*2. ODOMETER & KONDISI:*
+• KM Berangkat : ${item.odometer_start ? item.odometer_start.toLocaleString('id-ID') + ' KM' : '-'}
+• KM Kembali   : ${item.odometer_end ? item.odometer_end.toLocaleString('id-ID') + ' KM' : '-'}\n`;
     }
 
-    text += `\n\nTerima kasih telah mempercayakan perjalanan Anda bersama RentCar!`;
+    if (totalDenda > 0) {
+      text += `\n*3. DENDA & BIAYA TAMBAHAN:*
+• Overtime (${item.overtime_hours || 0} Jam) : Rp ${(item.overtime_fee || 0).toLocaleString('id-ID')}
+• Charge BBM Kurang : Rp ${(item.fuel_charge || 0).toLocaleString('id-ID')}
+• Charge Klaim/Baret : Rp ${(item.damage_charge || 0).toLocaleString('id-ID')}
+• *Total Denda/Charge* : *Rp ${totalDenda.toLocaleString('id-ID')}*\n`;
+    }
+
+    text += `----------------------------------------
+Status Transaksi : *${item.status}*
+_Terima kasih telah mempercayakan perjalanan Anda kepada kami!_`;
 
     navigator.clipboard.writeText(text);
     setCopiedText(true);
-    setTimeout(() => setCopiedText(false), 2500);
+    setTimeout(() => setCopiedText(false), 3000);
   };
 
-  // Helper to calculate countdown / overdue status for active rentals
-  const getRentalTimeStatus = (endDateStr: string) => {
-    if (!endDateStr) return { status: 'NORMAL', label: 'Jadwal Normal', daysDiff: 0, overdueHours: 0 };
-    
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    // Parse date (supports YYYY-MM-DD or DD/MM/YYYY)
-    let end: Date;
-    if (endDateStr.includes('/')) {
-      const parts = endDateStr.split('/');
-      end = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
-    } else {
-      end = new Date(endDateStr);
+  // Helper date status parser
+  function getRentalTimeStatus(endDateStr: string): { status: 'NORMAL' | 'TODAY' | 'OVERDUE'; label: string; daysDiff: number; overdueHours: number } {
+    if (!endDateStr) return { status: 'NORMAL', label: '', daysDiff: 0, overdueHours: 0 };
+    try {
+      let targetDate: Date | null = null;
+      if (endDateStr.includes(' ')) {
+        const parts = endDateStr.split(' ');
+        const day = parseInt(parts[0], 10);
+        const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+        const monthIndex = monthNames.findIndex((m) => parts[1]?.toLowerCase().startsWith(m.toLowerCase().slice(0, 3)));
+        const year = parseInt(parts[2], 10) || new Date().getFullYear();
+        if (!isNaN(day) && monthIndex !== -1) {
+          targetDate = new Date(year, monthIndex, day, 23, 59, 59);
+        }
+      } else {
+        targetDate = new Date(endDateStr);
+      }
+
+      if (!targetDate || isNaN(targetDate.getTime())) {
+        return { status: 'NORMAL', label: '', daysDiff: 0, overdueHours: 0 };
+      }
+
+      const now = new Date();
+      const diffMs = targetDate.getTime() - now.getTime();
+      const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+      if (diffDays < 0) {
+        const overdueHours = Math.abs(Math.round(diffMs / (1000 * 60 * 60)));
+        return { status: 'OVERDUE', label: `⚠️ Overdue ${Math.abs(diffDays)} Hari`, daysDiff: diffDays, overdueHours };
+      } else if (diffDays === 0) {
+        return { status: 'TODAY', label: '⏳ Kembali Hari Ini', daysDiff: 0, overdueHours: 0 };
+      } else {
+        return { status: 'NORMAL', label: `Sisa ${diffDays} Hari`, daysDiff: diffDays, overdueHours: 0 };
+      }
+    } catch {
+      return { status: 'NORMAL', label: '', daysDiff: 0, overdueHours: 0 };
     }
-    end.setHours(0, 0, 0, 0);
-    
-    const diffTime = end.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays < 0) {
-      const overdueDays = Math.abs(diffDays);
-      return {
-        status: 'OVERDUE',
-        label: `🚨 Terlambat ${overdueDays} Hari`,
-        daysDiff: diffDays,
-        overdueHours: overdueDays * 24,
-      };
-    } else if (diffDays === 0) {
-      return {
-        status: 'TODAY',
-        label: '⏳ Harus Kembali Hari Ini',
-        daysDiff: 0,
-        overdueHours: 0,
-      };
-    } else {
-      return {
-        status: 'ACTIVE',
-        label: `🟢 Sisa ${diffDays} Hari`,
-        daysDiff: diffDays,
-        overdueHours: 0,
-      };
-    }
-  };
+  }
 
-  // Categorize inquiries per tab
-  const inquiryList = inquiries.filter((inq) =>
-    ['NEW', 'CHECKING', 'AVAILABLE', 'NOT_AVAILABLE'].includes(inq.status)
-  );
-  const bookingList = inquiries.filter((inq) => inq.status === 'CONFIRMED');
-  const activeList = inquiries.filter((inq) => inq.status === 'ACTIVE_RENTAL');
-  const historyList = inquiries.filter((inq) =>
-    ['COMPLETED', 'CANCELLED'].includes(inq.status)
-  );
-
-  // List of overdue rentals in Tab 3
-  const overdueActiveList = activeList.filter(
-    (inq) => getRentalTimeStatus(inq.end_date).status === 'OVERDUE'
-  );
-
-  const getDisplayedList = () => {
+  // Filter inquiries per tab
+  const getFilteredInquiries = () => {
     switch (activeTab) {
       case 'inquiry':
-        return inquiryList;
+        return inquiries.filter((i) => ['NEW', 'CHECKING', 'AVAILABLE'].includes(i.status));
       case 'booking':
-        return bookingList;
+        return inquiries.filter((i) => i.status === 'CONFIRMED');
       case 'active':
-        return activeList;
+        return inquiries.filter((i) => i.status === 'ACTIVE_RENTAL');
       case 'history':
-        return historyList;
+        return inquiries.filter((i) => ['COMPLETED', 'CANCELLED'].includes(i.status));
       default:
         return inquiries;
     }
   };
 
-  const displayedList = getDisplayedList();
+  const filteredInquiries = getFilteredInquiries();
+
+  const tabCounts = {
+    inquiry: inquiries.filter((i) => ['NEW', 'CHECKING', 'AVAILABLE'].includes(i.status)).length,
+    booking: inquiries.filter((i) => i.status === 'CONFIRMED').length,
+    active: inquiries.filter((i) => i.status === 'ACTIVE_RENTAL').length,
+    history: inquiries.filter((i) => ['COMPLETED', 'CANCELLED'].includes(i.status)).length,
+  };
+
+  const overdueInquiries = inquiries.filter((i) => {
+    if (i.status !== 'ACTIVE_RENTAL') return false;
+    const timeStatus = getRentalTimeStatus(i.end_date);
+    return timeStatus.status === 'OVERDUE';
+  });
 
   const statusBadge = (status: string, timeStatus?: any) => {
-    if (status === 'ACTIVE_RENTAL' && timeStatus?.status === 'OVERDUE') {
+    if (status === 'ACTIVE_RENTAL' && timeStatus && timeStatus.status === 'OVERDUE') {
       return (
-        <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-rose-600 text-white border border-rose-700 animate-pulse tracking-wide shadow-sm">
-          🚨 {timeStatus.label}
+        <span className="px-3 py-1 rounded-full text-xs font-black bg-rose-600 text-white animate-pulse inline-flex items-center gap-1 shadow-sm">
+          <span>⚠️</span>
+          <span>OVERDUE ({Math.abs(timeStatus.daysDiff)} Hari)</span>
         </span>
       );
     }
-    if (status === 'ACTIVE_RENTAL' && timeStatus?.status === 'TODAY') {
-      return (
-        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500 text-white border border-amber-600 tracking-wide">
-          ⏳ Kembali Hari Ini
-        </span>
-      );
-    }
+
     switch (status) {
       case 'NEW':
-        return <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-200">Inquiry Baru</span>;
-      case 'CHECKING':
-        return <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">Cek Jadwal</span>;
-      case 'AVAILABLE':
-        return <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">Mobil Tersedia</span>;
-      case 'NOT_AVAILABLE':
-        return <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200">Penuh / Tidak Tersedia</span>;
+        return <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-blue-100 text-blue-800">Inquiry Baru</span>;
       case 'CONFIRMED':
-        return <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-purple-100 text-purple-800 border border-purple-200">Booking Dikonfirmasi (DP)</span>;
+        return <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-purple-100 text-purple-800">Booking Dikonfirmasi</span>;
       case 'ACTIVE_RENTAL':
-        return <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-600 text-white border border-emerald-700 animate-pulse">Sedang Berjalan (On Trip)</span>;
+        return <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-emerald-100 text-emerald-800">Mobil Digunakan</span>;
       case 'COMPLETED':
-        return <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">Selesai & Lunas</span>;
+        return <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-slate-100 text-slate-800">Selesai & Arsip</span>;
       case 'CANCELLED':
-        return <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-gray-100 text-gray-500 border border-gray-200">Dibatalkan</span>;
+        return <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-rose-100 text-rose-800">Dibatalkan</span>;
       default:
-        return <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700">{status}</span>;
+        return <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-slate-100 text-slate-600">{status}</span>;
     }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-7xl pb-24">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Manajemen Sewa & Inquiry
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Input pembayaran DP, pelunasan, uang jaminan deposit, pantau notifikasi overtime, dan kirim rincian ke WhatsApp customer.
-          </p>
-        </div>
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+          Manajemen Sewa & Inquiry
+        </h1>
+        <p className="text-xs sm:text-sm text-slate-500 mt-1">
+          Alur kerja sewa: 1. Konfirmasi DP $\rightarrow$ 2. Serah Terima & Penugasan Unit Mobil $\rightarrow$ 3. Penggunaan & Pengembalian $\rightarrow$ 4. Arsip Selesai.
+        </p>
       </div>
 
-      {/* OVERDUE ALERT BANNER */}
-      {overdueActiveList.length > 0 && (
-        <div className="p-4 sm:p-5 rounded-2xl bg-rose-50 border-2 border-rose-300 text-rose-950 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg animate-pulse">
-          <div className="flex items-start sm:items-center gap-3.5">
-            <span className="text-3xl sm:text-4xl shrink-0">🚨</span>
+      {/* Copy Alert Toast */}
+      {copiedText && (
+        <div className="fixed top-6 right-6 z-50 bg-slate-900 text-white text-xs px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2 animate-fade-in border border-slate-700">
+          <CheckIcon size={14} className="text-emerald-400" />
+          <span>Format WA Rincian Transaksi Berhasil Disalin!</span>
+        </div>
+      )}
+
+      {/* Overdue Warning Alert Banner */}
+      {overdueInquiries.length > 0 && (
+        <div className="bg-rose-50 border-2 border-rose-300 rounded-2xl p-4 sm:p-5 flex items-center justify-between gap-4 shadow-sm animate-fade-in">
+          <div className="flex items-center gap-3.5">
+            <span className="text-2xl sm:text-3xl">🚨</span>
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-black text-base sm:text-lg text-rose-900">
-                  PERINGATAN OVERTIME: {overdueActiveList.length} Mobil Melewati Batas Waktu Pengembalian!
-                </h3>
-              </div>
-              <p className="text-xs sm:text-sm text-rose-700 mt-0.5">
+              <h3 className="text-sm sm:text-base font-extrabold text-rose-900">
+                PERINGATAN OVERTIME: {overdueInquiries.length} Mobil Melewati Batas Waktu Pengembalian!
+              </h3>
+              <p className="text-xs text-rose-700 mt-0.5">
                 Unit belum dikembalikan sesuai jadwal sewa. Segera hubungi penyewa via WhatsApp atau cek posisi GPS mobil.
               </p>
             </div>
           </div>
           <button
-            type="button"
             onClick={() => setActiveTab('active')}
-            className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs shrink-0 shadow-md transition-all active:scale-98 cursor-pointer"
+            className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-extrabold rounded-xl shadow-sm transition-all shrink-0 cursor-pointer"
           >
-            Lihat Unit Overtime ({overdueActiveList.length})
+            Lihat Unit Overtime ({overdueInquiries.length})
           </button>
         </div>
       )}
 
-      {copiedText && (
-        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2">
-          <CheckIcon size={16} className="text-emerald-600" />
-          <span>Teks Rincian Tagihan berhasil disalin! Tinggal Paste di chat WhatsApp customer.</span>
-        </div>
-      )}
-
-      {/* 4-Stage Main Navigation Tabs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+      {/* 4 STAGE TABS */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {/* Tab 1: Inquiry */}
         <button
-          type="button"
           onClick={() => setActiveTab('inquiry')}
-          className={`p-3.5 sm:p-4 rounded-2xl border text-left transition-all relative cursor-pointer ${
+          className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
             activeTab === 'inquiry'
-              ? 'bg-brand-navy text-white border-brand-navy shadow-md ring-2 ring-brand-navy/20'
+              ? 'bg-blue-900 text-white border-blue-900 shadow-md scale-[1.02]'
               : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
           }`}
         >
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-bold uppercase tracking-wider opacity-80">Tahap 1</span>
-            <span
-              className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold ${
-                activeTab === 'inquiry' ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-700'
-              }`}
-            >
-              {inquiryList.length}
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider opacity-80">Tahap 1</span>
+            <span className={`px-2 py-0.5 rounded-full text-xs font-black ${
+              activeTab === 'inquiry' ? 'bg-white text-blue-900' : 'bg-blue-100 text-blue-800'
+            }`}>
+              {tabCounts.inquiry}
             </span>
           </div>
-          <div className="font-extrabold text-sm sm:text-base">Inquiry Masuk</div>
-          <p className={`text-[11px] mt-0.5 truncate ${activeTab === 'inquiry' ? 'text-slate-300' : 'text-slate-500'}`}>
-            Tanya jadwal & ketersediaan
-          </p>
+          <div className="font-extrabold text-sm sm:text-base mt-1">Inquiry Masuk</div>
+          <p className="text-[11px] opacity-75 mt-0.5 truncate">Tanya jadwal & ketersediaan</p>
         </button>
 
-        {/* Tab 2: Booking Terjadwal */}
+        {/* Tab 2: Booking Confirmed */}
         <button
-          type="button"
           onClick={() => setActiveTab('booking')}
-          className={`p-3.5 sm:p-4 rounded-2xl border text-left transition-all relative cursor-pointer ${
+          className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
             activeTab === 'booking'
-              ? 'bg-purple-900 text-white border-purple-900 shadow-md ring-2 ring-purple-900/20'
+              ? 'bg-purple-900 text-white border-purple-900 shadow-md scale-[1.02]'
               : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
           }`}
         >
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-bold uppercase tracking-wider opacity-80">Tahap 2</span>
-            <span
-              className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold ${
-                activeTab === 'booking' ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-700'
-              }`}
-            >
-              {bookingList.length}
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider opacity-80">Tahap 2</span>
+            <span className={`px-2 py-0.5 rounded-full text-xs font-black ${
+              activeTab === 'booking' ? 'bg-white text-purple-900' : 'bg-purple-100 text-purple-800'
+            }`}>
+              {tabCounts.booking}
             </span>
           </div>
-          <div className="font-extrabold text-sm sm:text-base">Booking Terjadwal</div>
-          <p className={`text-[11px] mt-0.5 truncate ${activeTab === 'booking' ? 'text-purple-200' : 'text-slate-500'}`}>
-            DP Masuk & KTP terverifikasi
-          </p>
+          <div className="font-extrabold text-sm sm:text-base mt-1">Booking (DP Masuk)</div>
+          <p className="text-[11px] opacity-75 mt-0.5 truncate">Persiapan serah terima fisik</p>
         </button>
 
-        {/* Tab 3: Sedang Disewa (Aktif) */}
+        {/* Tab 3: Active Rental */}
         <button
-          type="button"
           onClick={() => setActiveTab('active')}
-          className={`p-3.5 sm:p-4 rounded-2xl border text-left transition-all relative cursor-pointer ${
+          className={`p-4 rounded-2xl border text-left transition-all cursor-pointer relative ${
             activeTab === 'active'
-              ? overdueActiveList.length > 0
-                ? 'bg-rose-900 text-white border-rose-900 shadow-md ring-2 ring-rose-500/40'
-                : 'bg-emerald-800 text-white border-emerald-800 shadow-md ring-2 ring-emerald-800/20'
-              : overdueActiveList.length > 0
-              ? 'bg-rose-50 text-rose-900 border-rose-300 hover:bg-rose-100'
+              ? 'bg-emerald-900 text-white border-emerald-900 shadow-md scale-[1.02]'
               : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
           }`}
         >
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-bold uppercase tracking-wider opacity-80">Tahap 3</span>
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider opacity-80">Tahap 3</span>
             <div className="flex items-center gap-1">
-              {overdueActiveList.length > 0 && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white animate-pulse">
-                  🚨 {overdueActiveList.length} Overdue
+              {overdueInquiries.length > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-black animate-pulse">
+                  ⚠️ {overdueInquiries.length} Overdue
                 </span>
               )}
-              <span
-                className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold ${
-                  activeTab === 'active' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-700'
-                }`}
-              >
-                {activeList.length}
+              <span className={`px-2 py-0.5 rounded-full text-xs font-black ${
+                activeTab === 'active' ? 'bg-white text-emerald-900' : 'bg-emerald-100 text-emerald-800'
+              }`}>
+                {tabCounts.active}
               </span>
             </div>
           </div>
-          <div className="font-extrabold text-sm sm:text-base flex items-center gap-1.5">
-            <span>Sedang Disewa</span>
-            {activeList.length > 0 && (
-              <span className={`w-2 h-2 rounded-full ${overdueActiveList.length > 0 ? 'bg-rose-400' : 'bg-emerald-400'} animate-ping`} />
-            )}
-          </div>
-          <p className={`text-[11px] mt-0.5 truncate ${activeTab === 'active' ? 'text-white/80' : 'text-slate-500'}`}>
-            {overdueActiveList.length > 0 ? '⚠️ Ada mobil melewati batas!' : 'Mobil di jalan & pantau jam'}
-          </p>
+          <div className="font-extrabold text-sm sm:text-base mt-1">Mobil Digunakan</div>
+          <p className="text-[11px] opacity-75 mt-0.5 truncate">Pantau jadwal sewa & jam batas</p>
         </button>
 
-        {/* Tab 4: Riwayat Selesai */}
+        {/* Tab 4: History / Completed */}
         <button
-          type="button"
           onClick={() => setActiveTab('history')}
-          className={`p-3.5 sm:p-4 rounded-2xl border text-left transition-all relative cursor-pointer ${
+          className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
             activeTab === 'history'
-              ? 'bg-slate-800 text-white border-slate-800 shadow-md'
+              ? 'bg-slate-900 text-white border-slate-900 shadow-md scale-[1.02]'
               : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
           }`}
         >
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-bold uppercase tracking-wider opacity-80">Arsip</span>
-            <span
-              className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold ${
-                activeTab === 'history' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
-              }`}
-            >
-              {historyList.length}
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider opacity-80">Arsip</span>
+            <span className={`px-2 py-0.5 rounded-full text-xs font-black ${
+              activeTab === 'history' ? 'bg-white text-slate-900' : 'bg-slate-100 text-slate-700'
+            }`}>
+              {tabCounts.history}
             </span>
           </div>
-          <div className="font-extrabold text-sm sm:text-base">Riwayat Selesai</div>
-          <p className={`text-[11px] mt-0.5 truncate ${activeTab === 'history' ? 'text-slate-300' : 'text-slate-500'}`}>
-            Lunas & arsip transaksi selesai
-          </p>
+          <div className="font-extrabold text-sm sm:text-base mt-1">Riwayat Selesai</div>
+          <p className="text-[11px] opacity-75 mt-0.5 truncate">Lunas & arsip transaksi selesai</p>
         </button>
       </div>
 
-      {/* Main Table Content */}
-      <div className="bg-white rounded-2xl border border-slate-200 card-shadow overflow-hidden">
+      {/* TABLE DATA */}
+      <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden card-shadow">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs sm:text-sm">
-            <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200/80">
+          <table className="w-full text-left text-sm text-slate-600">
+            <thead className="bg-slate-50 border-b border-slate-200 text-[11px] uppercase tracking-wider font-extrabold text-slate-500">
               <tr>
-                <th className="px-5 py-3.5">Invoice & Penyewa</th>
-                <th className="px-5 py-3.5">Unit Mobil</th>
-                <th className="px-5 py-3.5">Jadwal Sewa</th>
-                {activeTab === 'inquiry' && <th className="px-5 py-3.5">Estimasi Biaya</th>}
-                {activeTab === 'booking' && <th className="px-5 py-3.5">DP & Metode Bayar</th>}
-                {activeTab === 'active' && <th className="px-5 py-3.5">Pelunasan Sisa & KM</th>}
-                {activeTab === 'history' && <th className="px-5 py-3.5">Total Sewa & Denda</th>}
-                <th className="px-5 py-3.5">Status & Waktu</th>
-                <th className="px-5 py-3.5 text-right">Aksi Admin</th>
+                <th className="px-5 py-4">Invoice & Penyewa</th>
+                <th className="px-5 py-4">Unit Mobil Fisik</th>
+                <th className="px-5 py-4">Jadwal & Durasi</th>
+                {activeTab === 'inquiry' && <th className="px-5 py-4">Estimasi Total</th>}
+                {activeTab === 'booking' && <th className="px-5 py-4">Status DP</th>}
+                {activeTab === 'active' && <th className="px-5 py-4">Pelunasan & Odometer</th>}
+                {activeTab === 'history' && <th className="px-5 py-4">Total & Denda</th>}
+                <th className="px-5 py-4">Status & Waktu</th>
+                <th className="px-5 py-4 text-right">Aksi Admin</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {displayedList.length === 0 ? (
+              {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center text-slate-400">
-                    Tidak ada data pada tab ini.
+                  <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                    Memuat data transaksi...
+                  </td>
+                </tr>
+              ) : filteredInquiries.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                    Tidak ada transaksi pada tahap ini.
                   </td>
                 </tr>
               ) : (
-                displayedList.map((item) => {
-                  const timeStatus = activeTab === 'active' ? getRentalTimeStatus(item.end_date) : null;
-                  const isOverdue = timeStatus?.status === 'OVERDUE';
-                  const isToday = timeStatus?.status === 'TODAY';
+                filteredInquiries.map((item) => {
+                  const timeStatus = getRentalTimeStatus(item.end_date);
+                  const isOverdue = timeStatus.status === 'OVERDUE' && item.status === 'ACTIVE_RENTAL';
+                  const isToday = timeStatus.status === 'TODAY' && item.status === 'ACTIVE_RENTAL';
 
                   return (
                     <tr
                       key={item.id}
-                      className={`transition-colors ${
-                        isOverdue
-                          ? 'bg-rose-50/90 border-l-4 border-l-rose-500 hover:bg-rose-100/90'
-                          : isToday
-                          ? 'bg-amber-50/60 border-l-4 border-l-amber-500 hover:bg-amber-100/70'
-                          : 'hover:bg-slate-50/70'
+                      className={`hover:bg-slate-50/80 transition-colors ${
+                        isOverdue ? 'bg-rose-50/50' : isToday ? 'bg-amber-50/40' : ''
                       }`}
                     >
                       {/* Invoice & Customer */}
@@ -577,7 +625,7 @@ ${item.overtime_fee > 0 ? `• Denda Overtime (${item.overtime_hours} Jam) : Rp 
                         </div>
                         <div className="text-slate-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
                           <span>Durasi: <strong className="text-slate-700">{item.duration_days} Hari</strong></span>
-                          {timeStatus && (
+                          {timeStatus && item.status === 'ACTIVE_RENTAL' && (
                             <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-extrabold ${
                               isOverdue
                                 ? 'bg-rose-200 text-rose-800 animate-pulse'
@@ -619,13 +667,21 @@ ${item.overtime_fee > 0 ? `• Denda Overtime (${item.overtime_hours} Jam) : Rp 
                       {/* Tab 3: Pelunasan & KM Column */}
                       {activeTab === 'active' && (
                         <td className="px-5 py-4 text-xs">
-                          <div className="font-bold text-emerald-700">
-                            Pelunasan: Rp {Math.max(0, (item.total_price || 0) - (item.dp_amount || 0)).toLocaleString('id-ID')}
-                          </div>
-                          <span className="inline-block px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px] font-semibold mt-0.5 border border-emerald-200">
-                            {item.payment_method_final || item.payment_method_dp || 'Transfer'}
-                          </span>
-                          <div className="text-slate-500 text-[11px] mt-0.5">
+                          {item.payment_status === 'FULLY_PAID' ? (
+                            <div className="font-bold text-emerald-700 flex items-center gap-1">
+                              <span>✅ Lunas Penuh</span>
+                            </div>
+                          ) : (
+                            <div>
+                              <div className="font-bold text-amber-700">
+                                Sisa: Rp {Math.max(0, (item.total_price || 0) - (item.dp_amount || 0)).toLocaleString('id-ID')}
+                              </div>
+                              <span className="inline-block px-2 py-0.5 rounded bg-amber-50 text-amber-800 text-[10px] font-semibold mt-0.5 border border-amber-200">
+                                Bayar Saat Kembali
+                              </span>
+                            </div>
+                          )}
+                          <div className="text-slate-500 text-[11px] mt-1">
                             KM Awal: {item.odometer_start ? item.odometer_start.toLocaleString('id-ID') : '-'} KM
                           </div>
                         </td>
@@ -653,87 +709,97 @@ ${item.overtime_fee > 0 ? `• Denda Overtime (${item.overtime_hours} Jam) : Rp 
                         {statusBadge(item.status, timeStatus)}
                       </td>
 
-                    {/* Operational Action Buttons */}
-                    <td className="px-5 py-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5 flex-wrap">
-                        {/* Copy WA Breakdown Text */}
-                        <button
-                          type="button"
-                          onClick={() => copyInvoiceText(item)}
-                          className="p-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
-                          title="Salin Rincian Tagihan untuk WA"
-                        >
-                          <FileTextIcon size={16} />
-                        </button>
-
-                        {/* WhatsApp Direct Chat Link */}
-                        <a
-                          href={`https://wa.me/${item.customer_phone.replace(/\D/g, '')}?text=${encodeURIComponent(
-                            `Halo Kak ${item.customer_name}, perihal pemesanan ${item.car_name} (${item.invoice_no}) di RentCar:`
-                          )}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-2 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
-                          title="Chat WhatsApp"
-                        >
-                          <WhatsAppIcon size={16} />
-                        </a>
-
-                        {/* Stage 1 Button: Upgrade to Booking */}
-                        {activeTab === 'inquiry' && (
+                      {/* Operational Action Buttons */}
+                      <td className="px-5 py-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                          {/* Copy WA Breakdown Text */}
                           <button
                             type="button"
-                            onClick={() => openConfirmModal(item)}
-                            className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs transition-all shadow-sm cursor-pointer"
+                            onClick={() => copyInvoiceText(item)}
+                            className="p-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
+                            title="Salin Rincian Tagihan untuk WA"
                           >
-                            Input DP & Konfirmasi
+                            <FileTextIcon size={16} />
                           </button>
-                        )}
 
-                        {/* Stage 2 Button: Handover Key & Pelunasan */}
-                        {activeTab === 'booking' && (
+                          {/* WhatsApp Direct Chat Link */}
+                          <a
+                            href={`https://wa.me/${item.customer_phone.replace(/\D/g, '')}?text=${encodeURIComponent(
+                              `Halo Kak ${item.customer_name}, perihal pemesanan ${item.car_name} (${item.invoice_no}) di RentCar:`
+                            )}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+                            title="Chat WhatsApp"
+                          >
+                            <WhatsAppIcon size={16} />
+                          </a>
+
+                          {/* Stage 1 Button: Upgrade to Booking */}
+                          {activeTab === 'inquiry' && (
+                            <button
+                              type="button"
+                              onClick={() => openConfirmModal(item)}
+                              className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs transition-all shadow-sm cursor-pointer"
+                            >
+                              Input DP & Konfirmasi
+                            </button>
+                          )}
+
+                          {/* Stage 2 Button: Handover Key & Assignment */}
+                          {activeTab === 'booking' && (
+                            <button
+                              type="button"
+                              onClick={() => openHandoverModal(item)}
+                              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-all shadow-sm cursor-pointer"
+                            >
+                              Serah Terima Kunci
+                            </button>
+                          )}
+
+                          {/* Stage 3 Buttons: Extend & Process Return */}
+                          {activeTab === 'active' && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => openExtendModal(item)}
+                                className="px-2.5 py-1.5 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold text-xs transition-all cursor-pointer"
+                                title="Perpanjang Sewa"
+                              >
+                                Extend
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openReturnModal(item)}
+                                className="px-3 py-1.5 rounded-xl bg-brand-navy hover:bg-brand-navy-light text-white font-bold text-xs transition-all shadow-sm cursor-pointer"
+                              >
+                                Pengembalian Mobil
+                              </button>
+                            </>
+                          )}
+
+                          {/* View Details */}
                           <button
                             type="button"
-                            onClick={() => openHandoverModal(item)}
-                            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-all shadow-sm cursor-pointer"
+                            onClick={() => setSelectedInquiry(item)}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
+                            title="Lihat Detail"
                           >
-                            Serah Terima & Pelunasan
+                            Detail
                           </button>
-                        )}
 
-                        {/* Stage 3 Button: Process Return */}
-                        {activeTab === 'active' && (
+                          {/* Delete */}
                           <button
                             type="button"
-                            onClick={() => openReturnModal(item)}
-                            className="px-3 py-1.5 rounded-xl bg-brand-navy hover:bg-brand-navy-light text-white font-bold text-xs transition-all shadow-sm cursor-pointer"
+                            onClick={() => handleDeleteInquiry(item.id, item.invoice_no)}
+                            className="p-2 rounded-xl bg-slate-100 hover:bg-rose-100 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                            title="Hapus"
                           >
-                            Hitung Denda & Selesai
+                            <TrashIcon size={16} />
                           </button>
-                        )}
-
-                        {/* View Details */}
-                        <button
-                          type="button"
-                          onClick={() => setSelectedInquiry(item)}
-                          className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
-                          title="Lihat Detail"
-                        >
-                          Detail
-                        </button>
-
-                        {/* Delete */}
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteInquiry(item.id, item.invoice_no)}
-                          className="p-2 rounded-xl bg-slate-100 hover:bg-rose-100 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
-                          title="Hapus"
-                        >
-                          <TrashIcon size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                        </div>
+                      </td>
+                    </tr>
                   );
                 })
               )}
@@ -751,10 +817,10 @@ ${item.overtime_fee > 0 ? `• Denda Overtime (${item.overtime_hours} Jam) : Rp 
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
                 <h3 className="font-extrabold text-lg text-slate-900">
-                  Input DP & Konfirmasi Booking
+                  Konfirmasi Booking & Penerimaan DP
                 </h3>
                 <p className="text-xs text-slate-500">
-                  {confirmModalItem.invoice_no} — {confirmModalItem.customer_name} ({confirmModalItem.car_name})
+                  {confirmModalItem.invoice_no} — {confirmModalItem.car_name} ({confirmModalItem.customer_name})
                 </p>
               </div>
               <button
@@ -766,81 +832,50 @@ ${item.overtime_fee > 0 ? `• Denda Overtime (${item.overtime_hours} Jam) : Rp 
             </div>
 
             <div className="space-y-3 text-xs sm:text-sm">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Total Biaya Sewa</label>
+                  <label className="block font-bold text-slate-700 mb-1">Total Biaya Sewa (Rp)</label>
                   <RupiahInput
                     value={totalPrice}
                     onChange={setTotalPrice}
-                    placeholder="0"
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Status Pembayaran</label>
-                  <select
-                    value={paymentStatus}
-                    onChange={(e) => setPaymentStatus(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800"
-                  >
-                    <option value="DP_PAID">DP Diterima (Belum Lunas)</option>
-                    <option value="FULLY_PAID">Lunas Penuh (Tanpa DP)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Nominal DP Diterima</label>
+                  <label className="block font-bold text-slate-700 mb-1">Jumlah DP Diterima (Rp)</label>
                   <RupiahInput
                     value={dpAmount}
                     onChange={setDpAmount}
-                    placeholder="0"
                   />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Metode Pembayaran DP</label>
-                  <select
-                    value={paymentMethodDp}
-                    onChange={(e) => setPaymentMethodDp(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800"
-                  >
-                    {PAYMENT_METHODS.map((m) => (
-                      <option key={m} value={m}>{m}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Rekapitulasi Pembayaran Interaktif di Modal 1 */}
-              <div className="p-3.5 rounded-2xl bg-purple-50 border border-purple-200 space-y-1.5 text-xs text-purple-950">
-                <div className="font-extrabold text-xs uppercase tracking-wider text-purple-900 mb-1">
-                  💡 Ringkasan Perhitungan Pembayaran:
-                </div>
-                <div className="flex justify-between">
-                  <span>Total Biaya Sewa:</span>
-                  <span className="font-bold">Rp {totalPrice.toLocaleString('id-ID')}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>DP Diterima ({paymentMethodDp}):</span>
-                  <span className="font-bold text-purple-700">- Rp {dpAmount.toLocaleString('id-ID')}</span>
-                </div>
-                <div className="flex justify-between pt-1.5 border-t border-purple-200/70 font-black text-sm text-purple-900">
-                  <span>👉 Sisa Pelunasan saat Ambil Kunci:</span>
-                  <span className="text-purple-700">
-                    Rp {Math.max(0, totalPrice - dpAmount).toLocaleString('id-ID')}
-                  </span>
                 </div>
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Catatan Verifikasi KTP / Bukti Transfer</label>
+                <label className="block font-bold text-slate-700 mb-1">Metode Pembayaran DP</label>
+                <select
+                  value={paymentMethodDp}
+                  onChange={(e) => setPaymentMethodDp(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800"
+                >
+                  {PAYMENT_METHODS.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Catatan Admin / Verifikasi Berkas</label>
                 <textarea
                   rows={2}
                   value={adminNotes}
                   onChange={(e) => setAdminNotes(e.target.value)}
-                  placeholder="Contoh: Bukti transfer DP terverifikasi. KTP dan SIM A sudah dicek."
+                  placeholder="Contoh: DP 200rb masuk BCA. KTP & SIM A penyewa valid."
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800"
                 />
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-purple-50 border border-purple-200 text-xs text-purple-900 flex items-center gap-2">
+                <CheckIcon size={18} className="text-purple-600 shrink-0" />
+                <span>Setelah dikonfirmasi, transaksi akan masuk ke <strong>Tahap 2 (Booking Dikonfirmasi)</strong> untuk persiapan unit fisik.</span>
               </div>
             </div>
 
@@ -857,7 +892,7 @@ ${item.overtime_fee > 0 ? `• Denda Overtime (${item.overtime_hours} Jam) : Rp 
                 onClick={submitConfirmBooking}
                 className="px-5 py-2.5 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-sm cursor-pointer"
               >
-                Simpan & Jadikan Booking Terjadwal
+                Simpan & Konfirmasi Booking
               </button>
             </div>
           </div>
@@ -865,18 +900,18 @@ ${item.overtime_fee > 0 ? `• Denda Overtime (${item.overtime_hours} Jam) : Rp 
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL 2: Serah Terima Kunci & Pelunasan Sisa (Tahap 2 -> Tahap 3)          */}
+      {/* MODAL 2: Serah Terima Kunci & Penugasan Unit Mobil Fisik (Tahap 2 -> 3)   */}
       {/* ========================================================================= */}
       {handoverModalItem && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
                 <h3 className="font-extrabold text-lg text-slate-900">
-                  Serah Terima Kunci & Pelunasan Sewa
+                  Serah Terima Kunci & Penugasan Unit Mobil
                 </h3>
                 <p className="text-xs text-slate-500">
-                  {handoverModalItem.invoice_no} — {handoverModalItem.car_name} ({handoverModalItem.customer_name})
+                  {handoverModalItem.invoice_no} — Penyewa: <strong>{handoverModalItem.customer_name}</strong>
                 </p>
               </div>
               <button
@@ -887,32 +922,40 @@ ${item.overtime_fee > 0 ? `• Denda Overtime (${item.overtime_hours} Jam) : Rp 
               </button>
             </div>
 
-            <div className="space-y-3 text-xs sm:text-sm">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Pelunasan Sisa Sewa</label>
-                  <RupiahInput
-                    value={finalPaymentAmount}
-                    onChange={setFinalPaymentAmount}
-                    placeholder="0"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Metode Pelunasan Sewa</label>
-                  <select
-                    value={paymentMethodFinal}
-                    onChange={(e) => setPaymentMethodFinal(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800"
-                  >
-                    {PAYMENT_METHODS.map((m) => (
-                      <option key={m} value={m}>{m}</option>
-                    ))}
-                  </select>
-                </div>
+            <div className="space-y-4 text-xs sm:text-sm">
+              {/* 1. Pilih / Ganti Unit Mobil & Plat Nomor */}
+              <div>
+                <label className="block font-bold text-slate-800 mb-1">
+                  Pilih Unit Mobil Fisik & Nomor Plat <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={handoverCarId}
+                  onChange={(e) => {
+                    const newId = e.target.value;
+                    setHandoverCarId(newId);
+                    const found = carsList.find((c) => c.id === newId);
+                    if (found && handoverModalItem) {
+                      const newTotal = handoverModalItem.duration_days * found.price_per_day;
+                      const newRemaining = Math.max(0, newTotal - (handoverModalItem.dp_amount || 0));
+                      setFinalPaymentAmount(newRemaining);
+                    }
+                  }}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-bold focus:bg-white"
+                >
+                  {carsList.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.brand} {c.model} — Plat: {c.plate_number || 'Tersedia'} (Rp {c.price_per_day.toLocaleString('id-ID')}/hari)
+                    </option>
+                  ))}
+                </select>
+                <span className="text-[11px] text-slate-400 mt-1 block">
+                  💡 Admin dapat menugaskan unit mobil fisik spesifik atau mengganti jenis mobil jika ada request dari penyewa.
+                </span>
               </div>
 
+              {/* 2. Kilometer (KM) Odometer Awal */}
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Kilometer (KM) Odometer Awal</label>
+                <label className="block font-bold text-slate-800 mb-1">Kilometer (KM) Odometer Awal Serah Terima</label>
                 <input
                   type="number"
                   value={odometerStart}
@@ -921,20 +964,88 @@ ${item.overtime_fee > 0 ? `• Denda Overtime (${item.overtime_hours} Jam) : Rp 
                 />
               </div>
 
+              {/* 3. Opsi Pembayaran Pelunasan Fleksibel */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                <label className="block font-bold text-slate-800 text-xs uppercase tracking-wider">
+                  Opsi Waktu Pelunasan Sisa Sewa:
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <label
+                    className={`p-3 rounded-xl border flex items-center gap-2 cursor-pointer transition-all ${
+                      handoverPaymentOption === 'PAY_ON_RETURN'
+                        ? 'bg-brand-navy text-white border-brand-navy shadow-sm'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="paymentOption"
+                      checked={handoverPaymentOption === 'PAY_ON_RETURN'}
+                      onChange={() => setHandoverPaymentOption('PAY_ON_RETURN')}
+                      className="hidden"
+                    />
+                    <span className="text-xs font-bold">💳 Bayar Saat Mobil Kembali (Default)</span>
+                  </label>
+
+                  <label
+                    className={`p-3 rounded-xl border flex items-center gap-2 cursor-pointer transition-all ${
+                      handoverPaymentOption === 'PAY_NOW'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="paymentOption"
+                      checked={handoverPaymentOption === 'PAY_NOW'}
+                      onChange={() => setHandoverPaymentOption('PAY_NOW')}
+                      className="hidden"
+                    />
+                    <span className="text-xs font-bold">✅ Lunasi Sekarang di Muka</span>
+                  </label>
+                </div>
+
+                {handoverPaymentOption === 'PAY_NOW' ? (
+                  <div className="pt-2 border-t border-slate-200 space-y-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="block font-bold text-slate-700 text-xs mb-1">Nominal Pelunasan</label>
+                        <RupiahInput value={finalPaymentAmount} onChange={setFinalPaymentAmount} size="sm" />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-slate-700 text-xs mb-1">Metode Pembayaran</label>
+                        <select
+                          value={paymentMethodFinal}
+                          onChange={(e) => setPaymentMethodFinal(e.target.value)}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800"
+                        >
+                          {PAYMENT_METHODS.map((m) => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-emerald-700 font-semibold">
+                      Pelunasan sisa sewa sebesar <strong>Rp {finalPaymentAmount.toLocaleString('id-ID')}</strong> akan menandai status sewa menjadi <strong>LUNAS PENUH</strong>.
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-slate-600 font-medium leading-relaxed">
+                    Sisa sewa sebesar <strong>Rp {finalPaymentAmount.toLocaleString('id-ID')}</strong> akan otomatis ditagihkan di <strong>Tahap 3 (Saat Pengembalian Mobil)</strong> bersamaan dengan perhitungan denda/overtime (jika ada).
+                  </p>
+                )}
+              </div>
+
+              {/* 4. Catatan BAST Serah Terima Fisik */}
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Catatan BAST Serah Terima Fisik</label>
+                <label className="block font-bold text-slate-800 mb-1">Catatan BAST Serah Terima Fisik</label>
                 <textarea
                   rows={2}
                   value={adminNotes}
                   onChange={(e) => setAdminNotes(e.target.value)}
-                  placeholder="Contoh: Bensin posisi 4/4 bar, STNK asli diserahkan, kondisi fisik mulus."
+                  placeholder="Contoh: Bensin 4/4 bar, STNK asli diserahkan, fisik mobil dicek bersama tanpa lecet baru."
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800"
                 />
-              </div>
-
-              <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 flex items-center gap-2">
-                <CheckIcon size={18} className="text-emerald-600 shrink-0" />
-                <span>Pelunasan sisa sewa sebesar <strong>Rp {finalPaymentAmount.toLocaleString('id-ID')}</strong> akan menandai status sewa menjadi <strong>LUNAS PENUH</strong>.</span>
               </div>
             </div>
 
@@ -951,7 +1062,7 @@ ${item.overtime_fee > 0 ? `• Denda Overtime (${item.overtime_hours} Jam) : Rp 
                 onClick={submitHandover}
                 className="px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm cursor-pointer"
               >
-                Serah Terima & Mulai Sewa
+                Serah Terima Kunci & Mulai Sewa
               </button>
             </div>
           </div>
@@ -959,15 +1070,15 @@ ${item.overtime_fee > 0 ? `• Denda Overtime (${item.overtime_hours} Jam) : Rp 
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL 3: Hitung Denda, Charge, & Selesai (Tahap 3 -> Tahap 4)             */}
+      {/* MODAL 3: Pengembalian Mobil & Pelunasan Akhir (Tahap 3 -> Tahap 4)        */}
       {/* ========================================================================= */}
       {returnModalItem && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
                 <h3 className="font-extrabold text-lg text-slate-900">
-                  Pengembalian Mobil & Kalkulasi Denda
+                  Pemeriksaan Pengembalian & Pelunasan Akhir
                 </h3>
                 <p className="text-xs text-slate-500">
                   {returnModalItem.invoice_no} — {returnModalItem.car_name} ({returnModalItem.customer_name})
@@ -991,6 +1102,9 @@ ${item.overtime_fee > 0 ? `• Denda Overtime (${item.overtime_hours} Jam) : Rp 
                     onChange={(e) => setOdometerEnd(Number(e.target.value))}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 font-bold"
                   />
+                  <span className="text-[10px] text-slate-400 block mt-0.5">
+                    KM Awal: {returnModalItem.odometer_start ? returnModalItem.odometer_start.toLocaleString('id-ID') : '-'}
+                  </span>
                 </div>
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Keterlambatan (Jam)</label>
@@ -1030,11 +1144,25 @@ ${item.overtime_fee > 0 ? `• Denda Overtime (${item.overtime_hours} Jam) : Rp 
                 </div>
               </div>
 
-              {/* Kalkulasi Ringkasan Denda */}
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1.5 text-xs">
-                <div className="font-extrabold text-xs uppercase tracking-wider text-slate-700 mb-1">
-                  Tagihan Biaya Tambahan:
+              {/* Kalkulasi Ringkasan Tagihan Akhir Lengkap */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
+                <div className="font-extrabold text-xs uppercase tracking-wider text-slate-800 mb-1 border-b border-slate-200 pb-1">
+                  Rincian Tagihan Pelunasan Akhir:
                 </div>
+
+                {/* Sisa Sewa Pokok jika belum lunas */}
+                {remainingUnpaidRent > 0 ? (
+                  <div className="flex justify-between font-bold text-slate-800">
+                    <span>Sisa Biaya Sewa Pokok (Belum Lunas):</span>
+                    <span>Rp {remainingUnpaidRent.toLocaleString('id-ID')}</span>
+                  </div>
+                ) : (
+                  <div className="flex justify-between text-emerald-700 font-semibold">
+                    <span>Biaya Sewa Pokok:</span>
+                    <span>✅ Lunas di Muka (Rp {(returnModalItem.total_price || 0).toLocaleString('id-ID')})</span>
+                  </div>
+                )}
+
                 {calculatedOvertimeFee > 0 && (
                   <div className="flex justify-between text-rose-600 font-semibold">
                     <span>Denda Overtime ({overtimeHours} Jam):</span>
@@ -1053,22 +1181,38 @@ ${item.overtime_fee > 0 ? `• Denda Overtime (${item.overtime_hours} Jam) : Rp 
                     <span>+ Rp {damageCharge.toLocaleString('id-ID')}</span>
                   </div>
                 )}
-                <div className="border-t border-slate-200 pt-1.5 flex justify-between font-black text-sm text-slate-900">
-                  <span>Total Tagihan Tambahan:</span>
-                  <span className={totalExtraCharges > 0 ? 'text-rose-600' : 'text-emerald-700'}>
-                    {totalExtraCharges > 0 ? `Rp ${totalExtraCharges.toLocaleString('id-ID')}` : 'Rp 0 (Bebas Denda)'}
+
+                <div className="border-t border-slate-300 pt-2 flex justify-between font-black text-sm text-slate-900">
+                  <span>TOTAL AKHIR YANG HARUS DIBAYAR:</span>
+                  <span className="text-base text-emerald-700">
+                    Rp {grandTotalDue.toLocaleString('id-ID')}
                   </span>
                 </div>
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Catatan Akhir Transaksi</label>
-                <textarea
-                  rows={2}
-                  value={adminNotes}
-                  onChange={(e) => setAdminNotes(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-slate-800"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1 text-xs">Metode Pembayaran Akhir</label>
+                  <select
+                    value={paymentMethodReturn}
+                    onChange={(e) => setPaymentMethodReturn(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800"
+                  >
+                    {PAYMENT_METHODS.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1 text-xs">Catatan Akhir Transaksi</label>
+                  <input
+                    type="text"
+                    value={adminNotes}
+                    onChange={(e) => setAdminNotes(e.target.value)}
+                    placeholder="Contoh: Unit dikembalikan dalam kondisi prima."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800"
+                  />
+                </div>
               </div>
             </div>
 
@@ -1085,7 +1229,89 @@ ${item.overtime_fee > 0 ? `• Denda Overtime (${item.overtime_hours} Jam) : Rp 
                 onClick={submitReturn}
                 className="px-5 py-2.5 rounded-xl text-xs font-bold bg-brand-navy hover:bg-brand-navy-light text-white shadow-sm cursor-pointer"
               >
-                Selesaikan Transaksi (Status: Selesai)
+                Pelunasan & Selesaikan Sewa
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 4: Perpanjang Sewa (Extend)                                         */}
+      {/* ========================================================================= */}
+      {extendModalItem && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="font-extrabold text-lg text-slate-900">
+                  Perpanjang Sewa (Extend)
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {extendModalItem.invoice_no} — {extendModalItem.car_name}
+                </p>
+              </div>
+              <button
+                onClick={() => setExtendModalItem(null)}
+                className="p-2 rounded-full hover:bg-slate-100 text-slate-400 cursor-pointer"
+              >
+                <XIcon size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs sm:text-sm">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Tambah Durasi Sewa</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[1, 2, 3, 7].map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setExtendDays(d)}
+                      className={`py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                        extendDays === d
+                          ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
+                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      +{d} Hari
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 space-y-1.5 text-xs text-amber-900">
+                <div className="flex justify-between">
+                  <span>Durasi Saat Ini:</span>
+                  <span className="font-bold">{extendModalItem.duration_days} Hari</span>
+                </div>
+                <div className="flex justify-between font-bold text-amber-950">
+                  <span>Durasi Baru:</span>
+                  <span>{Number(extendModalItem.duration_days) + Number(extendDays)} Hari</span>
+                </div>
+                <div className="flex justify-between border-t border-amber-200 pt-1 font-bold">
+                  <span>Tambahan Biaya:</span>
+                  <span>
+                    + Rp {(extendDays * Math.round((extendModalItem.total_price || 350000) / extendModalItem.duration_days)).toLocaleString('id-ID')}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setExtendModalItem(null)}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={submitExtendRental}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-sm cursor-pointer"
+              >
+                Simpan Perpanjangan
               </button>
             </div>
           </div>
@@ -1100,11 +1326,11 @@ ${item.overtime_fee > 0 ? `• Denda Overtime (${item.overtime_hours} Jam) : Rp 
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
-                <span className="text-xs font-mono font-bold text-slate-400">
-                  {selectedInquiry.invoice_no}
+                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                  Detail & Kwitansi Digital
                 </span>
-                <h3 className="font-extrabold text-lg text-slate-900">
-                  Detail Transaksi & Pembayaran
+                <h3 className="font-black text-xl text-slate-900">
+                  {selectedInquiry.invoice_no}
                 </h3>
               </div>
               <button
@@ -1115,109 +1341,116 @@ ${item.overtime_fee > 0 ? `• Denda Overtime (${item.overtime_hours} Jam) : Rp 
               </button>
             </div>
 
-            <div className="space-y-3 text-xs sm:text-sm">
-              <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+            <div className="space-y-4 text-xs sm:text-sm">
+              {/* Customer Box */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 grid grid-cols-2 gap-3">
                 <div>
-                  <span className="text-slate-500 block text-xs">Penyewa</span>
+                  <span className="text-slate-400 text-xs block mb-0.5">Nama Penyewa</span>
                   <span className="font-bold text-slate-900">{selectedInquiry.customer_name}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block text-xs">WhatsApp</span>
-                  <span className="font-bold text-slate-900">{selectedInquiry.customer_phone}</span>
+                  <span className="text-slate-400 text-xs block mb-0.5">Nomor WhatsApp</span>
+                  <span className="font-mono font-bold text-slate-900">{selectedInquiry.customer_phone}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block text-xs">Mobil</span>
-                  <span className="font-bold text-slate-900">{selectedInquiry.car_name}</span>
+                  <span className="text-slate-400 text-xs block mb-0.5">Unit Mobil</span>
+                  <span className="font-bold text-brand-navy">{selectedInquiry.car_name}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block text-xs">Durasi</span>
-                  <span className="font-bold text-slate-900">{selectedInquiry.duration_days} Hari</span>
+                  <span className="text-slate-400 text-xs block mb-0.5">Tujuan Perjalanan</span>
+                  <span className="font-bold text-slate-900">{selectedInquiry.destination || 'Dalam Kota'}</span>
                 </div>
               </div>
 
-              {/* Rincian Biaya & Metode Bayar */}
-              <div className="p-3.5 bg-purple-50/60 rounded-2xl border border-purple-100 space-y-1.5 text-xs">
-                <div className="font-bold text-purple-900 text-sm mb-1">Rincian Pembayaran Sewa</div>
-                <div className="flex justify-between text-slate-700">
-                  <span>Total Biaya Sewa:</span>
-                  <span className="font-bold">Rp {(selectedInquiry.total_price || 0).toLocaleString('id-ID')}</span>
+              {/* Financial Breakdown */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
+                  Rincian Keuangan:
+                </span>
+                <div className="flex justify-between">
+                  <span className="text-slate-600">Total Biaya Sewa ({selectedInquiry.duration_days} Hari):</span>
+                  <span className="font-extrabold text-slate-900">
+                    Rp {(selectedInquiry.total_price || 0).toLocaleString('id-ID')}
+                  </span>
                 </div>
-                <div className="flex justify-between text-slate-700">
-                  <span>DP Diterima ({selectedInquiry.payment_method_dp || 'Transfer'}):</span>
-                  <span className="font-bold">Rp {(selectedInquiry.dp_amount || 0).toLocaleString('id-ID')}</span>
+                <div className="flex justify-between text-purple-700">
+                  <span>DP Terbayar ({selectedInquiry.payment_method_dp || 'Transfer'}):</span>
+                  <span className="font-bold">
+                    - Rp {(selectedInquiry.dp_amount || 0).toLocaleString('id-ID')}
+                  </span>
                 </div>
-                <div className="flex justify-between text-slate-700">
-                  <span>Pelunasan Sisa ({selectedInquiry.payment_method_final || 'Transfer'}):</span>
-                  <span className="font-bold">Rp {Math.max(0, (selectedInquiry.total_price || 0) - (selectedInquiry.dp_amount || 0)).toLocaleString('id-ID')}</span>
+                <div className="flex justify-between font-bold border-t border-slate-200 pt-1.5">
+                  <span className="text-slate-700">Sisa Pembayaran Sewa Pokok:</span>
+                  <span className={selectedInquiry.payment_status === 'FULLY_PAID' ? 'text-emerald-700' : 'text-amber-700'}>
+                    {selectedInquiry.payment_status === 'FULLY_PAID'
+                      ? 'LUNAS'
+                      : `Rp ${Math.max(0, (selectedInquiry.total_price || 0) - (selectedInquiry.dp_amount || 0)).toLocaleString('id-ID')}`}
+                  </span>
                 </div>
-                <div className="flex justify-between text-purple-800 font-semibold pt-1 border-t border-purple-200/60">
-                  <span>Status Pembayaran:</span>
-                  <span className="uppercase">{selectedInquiry.payment_status || 'DP_PAID'}</span>
-                </div>
-              </div>
 
-              {/* Rincian Denda jika ada */}
-              {(selectedInquiry.overtime_fee > 0 || selectedInquiry.fuel_charge > 0 || selectedInquiry.damage_charge > 0) && (
-                <div className="p-3.5 bg-rose-50/60 rounded-2xl border border-rose-100 space-y-1.5 text-xs">
-                  <div className="font-bold text-rose-900 text-sm mb-1">Tagihan Biaya Tambahan</div>
-                  {selectedInquiry.overtime_fee > 0 && (
-                    <div className="flex justify-between text-rose-600 font-semibold">
-                      <span>Denda Overtime ({selectedInquiry.overtime_hours} Jam):</span>
-                      <span>Rp {selectedInquiry.overtime_fee.toLocaleString('id-ID')}</span>
-                    </div>
-                  )}
-                  {selectedInquiry.fuel_charge > 0 && (
-                    <div className="flex justify-between text-rose-600 font-semibold">
-                      <span>Charge Bensin Kurang:</span>
-                      <span>Rp {selectedInquiry.fuel_charge.toLocaleString('id-ID')}</span>
-                    </div>
-                  )}
-                  {selectedInquiry.damage_charge > 0 && (
-                    <div className="flex justify-between text-rose-600 font-semibold">
-                      <span>Charge Baret / Klaim:</span>
-                      <span>Rp {selectedInquiry.damage_charge.toLocaleString('id-ID')}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between text-rose-800 font-black pt-1 border-t border-rose-200">
-                    <span>Total Tagihan Tambahan:</span>
-                    <span>Rp {((selectedInquiry.overtime_fee || 0) + (selectedInquiry.fuel_charge || 0) + (selectedInquiry.damage_charge || 0)).toLocaleString('id-ID')}</span>
+                {(selectedInquiry.overtime_fee > 0 || selectedInquiry.fuel_charge > 0 || selectedInquiry.damage_charge > 0) && (
+                  <div className="border-t border-slate-200 pt-2 space-y-1 text-rose-700">
+                    <span className="font-bold block text-[11px] uppercase">Denda & Charge Tambahan:</span>
+                    {selectedInquiry.overtime_fee > 0 && (
+                      <div className="flex justify-between">
+                        <span>Overtime ({selectedInquiry.overtime_hours} Jam):</span>
+                        <span>+ Rp {selectedInquiry.overtime_fee.toLocaleString('id-ID')}</span>
+                      </div>
+                    )}
+                    {selectedInquiry.fuel_charge > 0 && (
+                      <div className="flex justify-between">
+                        <span>Charge BBM:</span>
+                        <span>+ Rp {selectedInquiry.fuel_charge.toLocaleString('id-ID')}</span>
+                      </div>
+                    )}
+                    {selectedInquiry.damage_charge > 0 && (
+                      <div className="flex justify-between">
+                        <span>Charge Kerusakan:</span>
+                        <span>+ Rp {selectedInquiry.damage_charge.toLocaleString('id-ID')}</span>
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
-              {selectedInquiry.notes && (
-                <div>
-                  <span className="text-slate-500 block text-xs">Catatan Customer:</span>
-                  <p className="p-2.5 bg-slate-50 rounded-xl text-slate-700 italic text-xs">
-                    &ldquo;{selectedInquiry.notes}&rdquo;
-                  </p>
+              {/* Odometer Info */}
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-center">
+                  <span className="text-slate-400 block mb-0.5">KM Berangkat</span>
+                  <span className="font-extrabold text-slate-800">
+                    {selectedInquiry.odometer_start ? `${selectedInquiry.odometer_start.toLocaleString('id-ID')} KM` : '-'}
+                  </span>
                 </div>
-              )}
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-center">
+                  <span className="text-slate-400 block mb-0.5">KM Kembali</span>
+                  <span className="font-extrabold text-slate-800">
+                    {selectedInquiry.odometer_end ? `${selectedInquiry.odometer_end.toLocaleString('id-ID')} KM` : '-'}
+                  </span>
+                </div>
+              </div>
 
+              {/* Notes */}
               {selectedInquiry.notes_admin && (
-                <div>
-                  <span className="text-slate-500 block text-xs">Catatan Admin:</span>
-                  <p className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs font-medium">
-                    {selectedInquiry.notes_admin}
-                  </p>
+                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs">
+                  <span className="text-slate-400 block mb-1 font-bold">Catatan Admin:</span>
+                  <p className="text-slate-700 italic">{selectedInquiry.notes_admin}</p>
                 </div>
               )}
             </div>
 
-            <div className="pt-2 flex items-center justify-between gap-2 border-t border-slate-100">
+            <div className="pt-2 flex items-center justify-between border-t border-slate-100 gap-2">
               <button
                 type="button"
                 onClick={() => copyInvoiceText(selectedInquiry)}
-                className="px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 shadow-sm cursor-pointer"
+                className="px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-1.5 cursor-pointer"
               >
-                <WhatsAppIcon size={14} />
-                <span>Salin Rincian untuk WA</span>
+                <FileTextIcon size={14} />
+                <span>Salin Format WA</span>
               </button>
-
               <button
                 type="button"
                 onClick={() => setSelectedInquiry(null)}
-                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-slate-900 text-white cursor-pointer"
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-brand-navy text-white hover:bg-brand-navy-light cursor-pointer"
               >
                 Tutup
               </button>
