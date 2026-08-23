@@ -100,28 +100,6 @@ export default function BookingForm({
     }
   };
 
-  const previewStartDate = formatDateIndo(startDate) || '{tanggal_mulai}';
-  const previewEndDate = formatDateIndo(endDate) || '{tanggal_selesai}';
-  const previewCarName = selectedCar ? `${selectedCar.brand} ${selectedCar.model}` : '{nama_mobil}';
-  const previewDuration = duration > 0 ? `${duration}` : '{durasi}';
-  const previewLocation = pickupLocation.trim() || '{lokasi_jemput}';
-  const previewDestination = destination.trim() || '{tujuan}';
-  const previewName = customerName.trim() || '{nama}';
-  const previewPhone = customerPhone.trim() || '{no_hp}';
-
-  const previewMessage = `Halo, saya ingin menanyakan ketersediaan mobil.
-
-Berikut detail pemesanan saya:
-• Tipe Mobil      : ${previewCarName}
-• Tanggal Mulai   : ${previewStartDate}
-• Tanggal Selesai : ${previewEndDate}
-• Durasi          : ${previewDuration} hari
-• Lokasi Ambil    : ${previewLocation}
-• Tujuan (Jika Ada): ${previewDestination}
-• Nama            : ${previewName}
-• No. HP          : ${previewPhone}
-
-Mohon informasinya, terima kasih.`;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -397,18 +375,7 @@ Mohon informasinya, terima kasih.`;
               </div>
             </div>
 
-            {/* 6. Dynamic Template WhatsApp Preview Box matching Mockup */}
-            <div className="pt-2">
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
-                Template Pesan WhatsApp (Live Preview)
-              </label>
-              <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-xl p-4 sm:p-5 font-mono text-xs text-slate-800 whitespace-pre-wrap leading-relaxed shadow-2xs">
-                {previewMessage}
-              </div>
-              <p className="text-[11px] text-slate-400 mt-2">
-                Pesan di atas akan otomatis tersusun dan dapat Anda sesuaikan kembali di aplikasi WhatsApp.
-              </p>
-            </div>
+
 
             {/* 7. WhatsApp Submit Button */}
             <div className="pt-4 space-y-3">
