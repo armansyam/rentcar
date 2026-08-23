@@ -19,6 +19,7 @@ interface BookingFormProps {
   selectedCarId?: string;
   adminWhatsApp?: string;
   companyName?: string;
+  defaultPickupLocation?: string;
 }
 
 export default function BookingForm({
@@ -26,13 +27,15 @@ export default function BookingForm({
   selectedCarId,
   adminWhatsApp = '6281234567890',
   companyName = 'RentCar',
+  defaultPickupLocation = '',
 }: BookingFormProps) {
   // Form State
   const [carId, setCarId] = useState<string>('');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
+  const [todayStr, setTodayStr] = useState<string>('');
   const [duration, setDuration] = useState<number>(1);
-  const [pickupLocation, setPickupLocation] = useState<string>('Kantor RentCar, Bandung');
+  const [pickupLocation, setPickupLocation] = useState<string>(defaultPickupLocation);
   const [destination, setDestination] = useState<string>('');
   const [customerName, setCustomerName] = useState<string>('');
   const [customerPhone, setCustomerPhone] = useState<string>('');
@@ -42,6 +45,13 @@ export default function BookingForm({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Sync defaultPickupLocation if loaded dynamically
+  useEffect(() => {
+    if (defaultPickupLocation && !pickupLocation) {
+      setPickupLocation(defaultPickupLocation);
+    }
+  }, [defaultPickupLocation]);
 
   // Set default car & listen to global car selection events
   useEffect(() => {
@@ -79,20 +89,20 @@ export default function BookingForm({
     return Math.max(1, diffDays);
   };
 
-  // Set default dates: tomorrow and 2 days after (2 days duration)
+  // Set default dates: Today as start date and tomorrow as end date (1 day duration)
   useEffect(() => {
     const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
+    const todayFormatted = today.toISOString().split('T')[0];
+    setTodayStr(todayFormatted);
 
-    const end = new Date(tomorrow);
-    end.setDate(tomorrow.getDate() + 2);
+    const initialDuration = 1;
+    const end = new Date(today);
+    end.setDate(today.getDate() + initialDuration);
+    const endFormatted = end.toISOString().split('T')[0];
 
-    const formatDate = (d: Date) => d.toISOString().split('T')[0];
-
-    if (!startDate) setStartDate(formatDate(tomorrow));
-    if (!endDate) setEndDate(formatDate(end));
-    setDuration(2);
+    if (!startDate) setStartDate(todayFormatted);
+    if (!endDate) setEndDate(endFormatted);
+    setDuration(initialDuration);
   }, []);
 
   const handleStartDateChange = (newStart: string) => {
@@ -308,6 +318,7 @@ export default function BookingForm({
                   <input
                     type="date"
                     value={startDate}
+                    min={todayStr}
                     onChange={(e) => handleStartDateChange(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-navy focus:bg-white transition-all cursor-pointer"
                     required
@@ -323,7 +334,7 @@ export default function BookingForm({
                   <input
                     type="date"
                     value={endDate}
-                    min={startDate}
+                    min={startDate || todayStr}
                     onChange={(e) => handleEndDateChange(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-navy focus:bg-white transition-all cursor-pointer"
                     required
@@ -408,7 +419,7 @@ export default function BookingForm({
                   type="text"
                   value={pickupLocation}
                   onChange={(e) => setPickupLocation(e.target.value)}
-                  placeholder="Contoh: Kantor RentCar, Bandung"
+                  placeholder="Contoh: Kantor Rental / Antar ke Bandara / Alamat Rumah"
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-navy focus:bg-white transition-all"
                   required
                 />

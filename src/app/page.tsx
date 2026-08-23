@@ -78,6 +78,7 @@ export default function HomePage({
           selectedCarId={selectedCarId}
           adminWhatsApp={settings.admin_whatsapp || '6281234567890'}
           companyName={settings.company_name || 'RentCar'}
+          defaultPickupLocation={settings.office_name || ''}
         />
 
         {/* 5. Syarat & Ketentuan Sewa */}
