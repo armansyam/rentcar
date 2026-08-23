@@ -38,6 +38,7 @@ export default function AdminInquiriesPage() {
   const [handoverModalItem, setHandoverModalItem] = useState<any | null>(null);
   const [returnModalItem, setReturnModalItem] = useState<any | null>(null);
   const [extendModalItem, setExtendModalItem] = useState<any | null>(null);
+  const [rescheduleModalItem, setRescheduleModalItem] = useState<any | null>(null);
 
   // Form states for Modal 1 (Confirm DP)
   const [dpAmount, setDpAmount] = useState<number>(200000);
@@ -63,6 +64,12 @@ export default function AdminInquiriesPage() {
 
   // Form states for Extend / Reschedule Modal
   const [extendDays, setExtendDays] = useState<number>(1);
+  const [rescheduleStartDate, setRescheduleStartDate] = useState<string>('');
+  const [rescheduleEndDate, setRescheduleEndDate] = useState<string>('');
+  const [rescheduleDuration, setRescheduleDuration] = useState<number>(1);
+  const [rescheduleDestination, setRescheduleDestination] = useState<string>('');
+  const [rescheduleTotalPrice, setRescheduleTotalPrice] = useState<number>(0);
+  const [rescheduleNotes, setRescheduleNotes] = useState<string>('');
 
   const fetchInquiries = async () => {
     setLoading(true);
@@ -250,7 +257,7 @@ export default function AdminInquiriesPage() {
     setActiveTab('history');
   };
 
-  // 4. Action: Extend / Reschedule Rental
+  // 4. Action: Extend Rental
   const openExtendModal = (item: any) => {
     setExtendModalItem(item);
     setExtendDays(1);
@@ -272,6 +279,30 @@ export default function AdminInquiriesPage() {
       notes_admin: `${extendModalItem.notes_admin || ''} [Perpanjang sewa +${addedDays} hari pada ${new Date().toLocaleDateString('id-ID')}]`.trim(),
     });
     setExtendModalItem(null);
+  };
+
+  // 5. Action: Edit / Reschedule Booking Schedule
+  const openRescheduleModal = (item: any) => {
+    setRescheduleModalItem(item);
+    setRescheduleStartDate(item.start_date || '');
+    setRescheduleEndDate(item.end_date || '');
+    setRescheduleDuration(item.duration_days || 1);
+    setRescheduleDestination(item.destination || '');
+    setRescheduleTotalPrice(item.total_price || item.duration_days * 350000);
+    setRescheduleNotes(item.notes_admin || '');
+  };
+
+  const submitReschedule = async () => {
+    if (!rescheduleModalItem) return;
+    await handleUpdate(rescheduleModalItem.id, {
+      start_date: rescheduleStartDate,
+      end_date: rescheduleEndDate,
+      duration_days: Number(rescheduleDuration),
+      destination: rescheduleDestination,
+      total_price: Number(rescheduleTotalPrice),
+      notes_admin: `${rescheduleNotes ? rescheduleNotes + ' | ' : ''}Reschedule jadwal: ${rescheduleStartDate} s/d ${rescheduleEndDate} (${rescheduleDuration} Hari) pada ${new Date().toLocaleDateString('id-ID')}`.trim(),
+    });
+    setRescheduleModalItem(null);
   };
 
   // Helper to copy structured WA receipt
@@ -637,6 +668,15 @@ _Terima kasih telah mempercayakan perjalanan Anda kepada kami!_`;
                             </span>
                           )}
                         </div>
+                        {item.status !== 'COMPLETED' && item.status !== 'CANCELLED' && (
+                          <button
+                            type="button"
+                            onClick={() => openRescheduleModal(item)}
+                            className="text-[11px] font-bold text-brand-navy hover:underline inline-flex items-center gap-1 mt-1 cursor-pointer"
+                          >
+                            <span>📅 Ubah Jadwal</span>
+                          </button>
+                        )}
                       </td>
 
                       {/* Tab 1: Estimasi Biaya */}
@@ -1312,6 +1352,126 @@ _Terima kasih telah mempercayakan perjalanan Anda kepada kami!_`;
                 className="px-5 py-2.5 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-sm cursor-pointer"
               >
                 Simpan Perpanjangan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 5: Ubah Jadwal Sewa (Reschedule)                                    */}
+      {/* ========================================================================= */}
+      {rescheduleModalItem && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="font-extrabold text-lg text-slate-900">
+                  Ubah Jadwal Sewa (Reschedule)
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {rescheduleModalItem.invoice_no} — {rescheduleModalItem.car_name} ({rescheduleModalItem.customer_name})
+                </p>
+              </div>
+              <button
+                onClick={() => setRescheduleModalItem(null)}
+                className="p-2 rounded-full hover:bg-slate-100 text-slate-400 cursor-pointer"
+              >
+                <XIcon size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs sm:text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Tanggal Mulai Sewa *</label>
+                  <input
+                    type="text"
+                    value={rescheduleStartDate}
+                    onChange={(e) => setRescheduleStartDate(e.target.value)}
+                    placeholder="Contoh: 26 Agustus 2026 atau 2026-08-26"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-bold focus:bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Tanggal Selesai Sewa *</label>
+                  <input
+                    type="text"
+                    value={rescheduleEndDate}
+                    onChange={(e) => setRescheduleEndDate(e.target.value)}
+                    placeholder="Contoh: 28 Agustus 2026 atau 2026-08-28"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-bold focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Total Durasi (Hari) *</label>
+                  <input
+                    type="number"
+                    value={rescheduleDuration}
+                    onChange={(e) => {
+                      const newDur = Number(e.target.value) || 1;
+                      setRescheduleDuration(newDur);
+                      const unitPrice =
+                        Math.round((rescheduleModalItem.total_price || 350000) / (rescheduleModalItem.duration_days || 1)) || 350000;
+                      setRescheduleTotalPrice(newDur * unitPrice);
+                    }}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-bold focus:bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Total Biaya Sewa Baru (Rp)</label>
+                  <RupiahInput
+                    value={rescheduleTotalPrice}
+                    onChange={setRescheduleTotalPrice}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Tujuan Perjalanan</label>
+                <input
+                  type="text"
+                  value={rescheduleDestination}
+                  onChange={(e) => setRescheduleDestination(e.target.value)}
+                  placeholder="Contoh: Dalam Kota Bandung / Luar Kota (Jakarta/Pangandaran)"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Catatan / Alasan Perubahan Jadwal</label>
+                <textarea
+                  rows={2}
+                  value={rescheduleNotes}
+                  onChange={(e) => setRescheduleNotes(e.target.value)}
+                  placeholder="Contoh: Penyewa minta memundurkan tanggal sewa karena agenda pekerjaan."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800"
+                />
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center gap-2">
+                <span>💡</span>
+                <span>Perubahan jadwal akan langsung memperbarui kalkulasi estimasi waktu, notifikasi overtime, dan total biaya sewa.</span>
+              </div>
+            </div>
+
+            <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setRescheduleModalItem(null)}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={submitReschedule}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-brand-navy hover:bg-brand-navy-light text-white shadow-sm cursor-pointer"
+              >
+                Simpan Perubahan Jadwal
               </button>
             </div>
           </div>
