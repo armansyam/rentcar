@@ -926,21 +926,38 @@ _Terima kasih telah mempercayakan perjalanan Anda kepada kami!_`;
               </button>
             </div>
 
-            <div className="space-y-3 text-xs sm:text-sm">
+            <div className="space-y-4 text-xs sm:text-sm">
+              {/* Read-only Automatic Calculation Summary */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
+                <div className="flex items-center justify-between text-slate-600">
+                  <span>Unit Mobil & Jadwal:</span>
+                  <span className="font-bold text-slate-800">{confirmModalItem.car_name}</span>
+                </div>
+                <div className="flex items-center justify-between text-slate-600">
+                  <span>Durasi Sewa:</span>
+                  <span className="font-bold text-slate-800">{confirmModalItem.duration_days} Hari ({confirmModalItem.start_date} &rarr; {confirmModalItem.end_date})</span>
+                </div>
+                <div className="flex items-center justify-between border-t border-slate-200 pt-2 text-slate-700">
+                  <span className="font-bold">Total Biaya Sewa ({confirmModalItem.duration_days} Hari):</span>
+                  <span className="font-black text-base text-brand-navy">
+                    Rp {Number(totalPrice).toLocaleString('id-ID')}
+                  </span>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Total Biaya Sewa (Rp)</label>
-                  <RupiahInput
-                    value={totalPrice}
-                    onChange={setTotalPrice}
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Jumlah DP Diterima (Rp)</label>
+                  <label className="block font-bold text-slate-700 mb-1">Jumlah DP Diterima (Rp) *</label>
                   <RupiahInput
                     value={dpAmount}
                     onChange={setDpAmount}
                   />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Sisa Pelunasan Nanti</label>
+                  <div className="w-full bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-2.5 text-amber-900 font-extrabold text-xs sm:text-sm flex items-center">
+                    Rp {Math.max(0, Number(totalPrice) - Number(dpAmount)).toLocaleString('id-ID')}
+                  </div>
                 </div>
               </div>
 
@@ -1492,23 +1509,27 @@ _Terima kasih telah mempercayakan perjalanan Anda kepada kami!_`;
                   <label className="block font-bold text-slate-700 mb-1">Total Durasi (Hari) *</label>
                   <input
                     type="number"
+                    min={1}
                     value={rescheduleDuration}
                     onChange={(e) => {
-                      const newDur = Number(e.target.value) || 1;
+                      const newDur = Math.max(1, Number(e.target.value) || 1);
                       setRescheduleDuration(newDur);
-                      const unitPrice =
-                        Math.round((rescheduleModalItem.total_price || 350000) / (rescheduleModalItem.duration_days || 1)) || 350000;
+                      const matchedCar =
+                        carsList.find((c) => c.id === rescheduleModalItem.car_id) ||
+                        carsList.find((c) => rescheduleModalItem.car_name && rescheduleModalItem.car_name.toLowerCase().includes(c.model.toLowerCase()));
+                      const unitPrice = matchedCar
+                        ? matchedCar.price_per_day
+                        : Math.round((rescheduleModalItem.total_price || 350000) / (rescheduleModalItem.duration_days || 1)) || 350000;
                       setRescheduleTotalPrice(newDur * unitPrice);
                     }}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-bold focus:bg-white"
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Total Biaya Sewa Baru (Rp)</label>
-                  <RupiahInput
-                    value={rescheduleTotalPrice}
-                    onChange={setRescheduleTotalPrice}
-                  />
+                  <label className="block font-bold text-slate-700 mb-1">Total Biaya Sewa Baru (Otomatis)</label>
+                  <div className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-black text-xs sm:text-sm flex items-center">
+                    Rp {rescheduleTotalPrice.toLocaleString('id-ID')}
+                  </div>
                 </div>
               </div>
 
