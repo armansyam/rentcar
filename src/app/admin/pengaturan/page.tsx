@@ -398,6 +398,14 @@ export default function AdminSettingsPage() {
     }
   };
 
+  const [currentOrigin, setCurrentOrigin] = useState<string>('');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setCurrentOrigin(window.location.origin);
+    }
+  }, []);
+
   const liveEmbedUrl =
     settings.google_maps_embed ||
     getGoogleMapsEmbedUrl(settings.google_maps_url, settings.office_address, settings.office_name);
@@ -407,7 +415,7 @@ export default function AdminSettingsPage() {
   const metaDesc =
     settings.meta_description ||
     'Sewa mobil lepas kunci di Bandung dengan armada terawat, harga transparan, dan proses pemesanan praktis via WhatsApp.';
-  const canonicalUrl = settings.canonical_url || 'https://rentcar.id';
+  const canonicalUrl = settings.canonical_url || currentOrigin || 'http://localhost:3000';
   const ogImageUrl = settings.og_image || '/images/cars/hero-luxury-black-suv.jpg';
   const keywordsList = settings.meta_keywords
     ? settings.meta_keywords.split(',').map((k) => k.trim()).filter(Boolean)
@@ -1445,9 +1453,16 @@ export default function AdminSettingsPage() {
               </div>
 
               <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
-                <span className="text-slate-400 text-xs block mb-1">Domain / Canonical URL</span>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-slate-400 text-xs block">Domain / Canonical URL</span>
+                  {!settings.canonical_url && (
+                    <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">
+                      ✨ Otomatis
+                    </span>
+                  )}
+                </div>
                 <span className="font-mono font-bold text-slate-900 text-xs block truncate">
-                  {canonicalUrl}
+                  {settings.canonical_url || currentOrigin || 'http://localhost:3000'}
                 </span>
               </div>
             </div>
@@ -1567,13 +1582,13 @@ export default function AdminSettingsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">
-                    Canonical / Domain Utama Website
+                    Canonical / Domain Utama Website <span className="text-slate-400 font-normal">(Opsional - Otomatis jika dikosongkan)</span>
                   </label>
                   <input
                     type="url"
                     value={settings.canonical_url || ''}
                     onChange={(e) => handleChange('canonical_url', e.target.value)}
-                    placeholder="https://rentcar.id"
+                    placeholder={currentOrigin ? `${currentOrigin} (Otomatis)` : 'Contoh: https://domain-anda.com'}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 font-mono focus:bg-white focus:border-brand-navy"
                   />
                 </div>
